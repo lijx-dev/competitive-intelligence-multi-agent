@@ -39,3 +39,4 @@ docker-compose.override.yml
 Thumbs.db
 "python/.env" 
 ".env" 
+ci_system.db 

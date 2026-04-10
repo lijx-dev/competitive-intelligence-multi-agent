@@ -219,13 +219,52 @@ async def analyze_stream(req: AnalyzeRequest):
             "error": None,
         }
 
+        # 新增：收集所有节点的结果，用于最后存库
+        node_results = {}
+
         try:
             async for event in pipeline.astream(initial_state):
                 for node_name, node_output in event.items():
+                    # 保存节点结果
+                    node_results[node_name] = node_output
                     yield {
                         "event": node_name,
                         "data": json.dumps(node_output, default=str, ensure_ascii=False),
                     }
+
+            # -------------------------- 新增：流式分析完成后自动存入数据库 --------------------------
+            try:
+                # 构造完整的分析结果
+                final_analysis_result = {
+                    "changes_detected": node_results.get("monitor", {}).get("changes_detected", []),
+                    "research_results": node_results.get("research", {}).get("research_results", []),
+                    "comparison_matrix": node_results.get("compare", {}).get("comparison_matrix"),
+                    "battlecard": node_results.get("battlecard", {}).get("battlecard"),
+                    "alerts_sent": node_results.get("alert", {}).get("alerts_sent", []),
+                }
+                final_quality_score = node_results.get("quality_check", {}).get("quality_score", 0.0)
+
+                # 查找竞品ID
+                competitor_id = None
+                competitors = get_all_competitors()
+                for comp in competitors:
+                    if comp["name"] == req.competitor:
+                        competitor_id = comp["id"]
+                        break
+
+                # 存入数据库
+                create_analysis_record(
+                    competitor_id=competitor_id,
+                    competitor_name=req.competitor,
+                    request_urls=req.urls or [],
+                    analysis_result=final_analysis_result,
+                    quality_score=final_quality_score
+                )
+                logger.info(f"流式分析记录已存入数据库，竞品：{req.competitor}")
+            except Exception as e:
+                logger.warning(f"流式分析记录存库失败：{str(e)}，不影响核心分析流程")
+            # -----------------------------------------------------------------------------------
+
         except Exception as exc:
             yield {
                 "event": "error",
