@@ -52,49 +52,6 @@ uvicorn src.api.server:app --reload --port 8000
 
 > 注意：本地开发模式下，Kafka/ES/Redis相关功能会优雅降级（跳过或使用内存替代）。
 
----
-
-## Java 版启动
-
-### Maven 构建
-
-```bash
-cd java
-
-# 构建
-mvn clean package -DskipTests
-
-# 运行
-java -jar target/competitive-intelligence-1.0.0.jar
-```
-
-### 配置
-
-编辑 `src/main/resources/application.yml` 或通过环境变量覆盖：
-
-```bash
-export OPENAI_API_KEY=sk-your-key
-export KAFKA_BOOTSTRAP_SERVERS=localhost:9092
-java -jar target/competitive-intelligence-1.0.0.jar
-```
-
----
-
-## Go 版启动
-
-```bash
-cd go
-
-# 编译
-go build -o ci-agent ./cmd/server
-
-# 配置
-cp ../python/.env.example .env  # 复用Python的配置模板
-# 编辑 .env
-
-# 运行
-./ci-agent
-```
 
 ---
 
