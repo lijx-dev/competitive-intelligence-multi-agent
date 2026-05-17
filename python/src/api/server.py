@@ -12,7 +12,15 @@ from ..db.sqlite import (
     delete_competitor,
     create_analysis_record,
     get_all_analysis_records,
-    get_analysis_record_by_id
+    get_analysis_record_by_id,
+    get_all_config,
+    set_config_value,
+    batch_set_config,
+    export_config,
+    import_config,
+    get_config_history,
+    rollback_config,
+    get_db_stats,
 )
 # 新增：Pydantic模型导入
 from pydantic import BaseModel, Field
@@ -30,6 +38,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from sse_starlette.sse import EventSourceResponse
 
 from ..graph.workflow import pipeline, PipelineState
+from ..config import get_all_defaults, get_effective_notification_config
+from ..tools.notification import send_slack, send_dingtalk, send_email
 
 logger = logging.getLogger(__name__)
 
@@ -86,6 +96,29 @@ class AnalysisRecordResponse(BaseModel):
     analysis_result: Dict[str, Any]
     quality_score: float
     created_at: str
+# ---------------------------------------------------------------------------
+# 新增：系统配置相关模型
+# ---------------------------------------------------------------------------
+class ConfigSetRequest(BaseModel):
+    alert: Optional[Dict[str, Any]] = None
+    notification: Optional[Dict[str, Any]] = None
+    llm: Optional[Dict[str, Any]] = None
+    pipeline: Optional[Dict[str, Any]] = None
+
+
+class NotificationTestRequest(BaseModel):
+    channel: str = Field(description="通知渠道：slack / dingtalk / email")
+    message: str = Field(default="🧪 这是一条来自竞品情报系统的测试通知。")
+
+
+class ConfigImportRequest(BaseModel):
+    configs: Dict[str, Any]
+
+
+class ConfigRollbackRequest(BaseModel):
+    key: str
+    version: int
+
 # ---------------------------------------------------------------------------
 # Application factory
 # ---------------------------------------------------------------------------
@@ -341,3 +374,128 @@ async def get_analysis_record(record_id: int):
     if not record:
         raise HTTPException(status_code=404, detail=f"ID为{record_id}的分析记录不存在")
     return record
+
+
+# ==================================================================
+#  系统配置 API
+# ==================================================================
+
+@app.get("/api/config", summary="获取所有系统配置")
+async def api_get_config():
+    """返回用户已保存的配置（合并默认值）。"""
+    defaults = get_all_defaults()
+    saved = get_all_config()
+    categories = ["alert", "notification", "llm", "pipeline"]
+    result = {"defaults": defaults}
+    for cat in categories:
+        result[cat] = saved.get(cat, {}).get("value", {}) if cat in saved else {}
+    return result
+
+
+@app.put("/api/config", summary="保存系统配置")
+async def api_set_config(req: ConfigSetRequest):
+    """保存用户修改的配置项。每个 section 独立存储。"""
+    try:
+        payload = {}
+        if req.alert is not None:
+            payload["alert"] = req.alert
+        if req.notification is not None:
+            payload["notification"] = req.notification
+        if req.llm is not None:
+            payload["llm"] = req.llm
+        if req.pipeline is not None:
+            payload["pipeline"] = req.pipeline
+
+        results = batch_set_config(payload)
+        return {"status": "success", "updated": len(results), "keys": [r["key"] for r in results]}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"保存配置失败：{str(e)}")
+
+
+@app.post("/api/config/test-notification", summary="测试通知渠道")
+async def api_test_notification(req: NotificationTestRequest):
+    """向指定渠道发送一条测试通知。"""
+    try:
+        ok = False
+        if req.channel == "slack":
+            ok = await send_slack(req.message)
+        elif req.channel == "dingtalk":
+            ok = await send_dingtalk(req.message)
+        elif req.channel == "email":
+            ok = await send_email("竞品情报系统 - 测试通知", req.message)
+        else:
+            raise HTTPException(status_code=400, detail=f"不支持的渠道：{req.channel}")
+        return {"channel": req.channel, "success": ok, "message": "发送成功" if ok else "发送失败（请检查配置）"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        return {"channel": req.channel, "success": False, "message": str(e)}
+
+
+@app.post("/api/config/reset-llm", summary="重置LLM参数为默认值")
+async def api_reset_llm():
+    """将 LLM 配置恢复为系统默认值（来自 .env）。"""
+    defaults = get_all_defaults()["llm"]
+    set_config_value("llm", defaults)
+    return {"status": "success", "llm": defaults}
+
+
+@app.get("/api/config/history", summary="获取配置版本历史")
+async def api_get_config_history(key: Optional[str] = None):
+    """获取配置项的版本历史记录，可按 key 筛选。"""
+    return get_config_history(key=key)
+
+
+@app.post("/api/config/rollback", summary="回滚配置到指定版本")
+async def api_rollback_config(req: ConfigRollbackRequest):
+    """将指定配置项回滚到历史版本。"""
+    try:
+        result = rollback_config(req.key, req.version)
+        return {"status": "success", "key": result["key"], "value": result["value"]}
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@app.get("/api/config/export", summary="导出系统配置为JSON")
+async def api_export_config():
+    """导出全部配置（含版本信息），可用于备份和迁移。"""
+    return export_config()
+
+
+@app.post("/api/config/import", summary="从JSON导入系统配置")
+async def api_import_config(req: ConfigImportRequest):
+    """从导出的 JSON 数据导入配置。"""
+    try:
+        count = import_config(req.model_dump())
+        return {"status": "success", "imported_count": count}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"导入失败：{str(e)}")
+
+
+# ==================================================================
+#  系统信息 API
+# ==================================================================
+
+@app.get("/api/system-info", summary="获取系统运行信息")
+async def api_system_info():
+    """返回当前服务的运行状态、数据库统计和资源使用情况。"""
+    import sys
+    import os
+    import time
+
+    stats = get_db_stats()
+    process = None
+    try:
+        import psutil
+        process = psutil.Process(os.getpid())
+    except ImportError:
+        pass
+
+    return {
+        "python_version": sys.version,
+        "platform": sys.platform,
+        "db_stats": stats,
+        "memory_mb": round(process.memory_info().rss / 1024 / 1024, 1) if process else "N/A (pip install psutil)",
+        "cpu_percent": process.cpu_percent(interval=0.1) if process else "N/A",
+        "pid": os.getpid(),
+    }

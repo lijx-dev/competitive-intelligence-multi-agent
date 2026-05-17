@@ -2,11 +2,61 @@
 import streamlit as st
 import requests
 import json
-from sseclient import SSEClient
 from datetime import datetime
 from docx import Document
 from docx.shared import Inches
 import io
+
+
+# ===================== 自定义 SSE 解析器 =====================
+
+def parse_sse_stream(response):
+    """
+    逐行解析 SSE (Server-Sent Events) 流，替代有 bug 的 sseclient 库。
+
+    SSE 格式：
+        event: <event_name>
+        data: <json_string>
+        <blank line>
+
+    Yields: (event_name: str, data: dict)
+    """
+    current_event = None
+    data_lines = []
+
+    for line in response.iter_lines(decode_unicode=True):
+        if line is None:
+            continue
+
+        # 空行 = 事件结束分隔符
+        if line == "":
+            if current_event and data_lines:
+                try:
+                    payload = json.loads("".join(data_lines))
+                    yield current_event, payload
+                except json.JSONDecodeError:
+                    pass  # 跳过无法解析的事件
+            current_event = None
+            data_lines = []
+            continue
+
+        # 注释行跳过
+        if line.startswith(":"):
+            continue
+
+        # 解析 field: value
+        if ": " in line:
+            field, _, value = line.partition(": ")
+            if field == "event":
+                current_event = value
+            elif field == "data":
+                data_lines.append(value)
+        elif line.endswith(":"):
+            # 无值字段（retry: 等），忽略
+            field = line[:-1]
+            if field == "data":
+                data_lines.append("")
+
 
 # 页面配置
 st.set_page_config(
@@ -181,32 +231,32 @@ if page == "竞品分析工作台":
             progress_container = st.container()
             result_container = st.container()
 
-            # 调用SSE流式接口
+            # 调用 SSE 流式接口（使用自定义解析器替代 sseclient）
             try:
                 response = requests.post(
                     f"{API_BASE_URL}/analyze/stream",
                     json=request_body,
                     stream=True,
-                    headers={"Accept": "text/event-stream"}
+                    headers={"Accept": "text/event-stream"},
+                    timeout=(5, 300),  # (connect_timeout, read_timeout)
                 )
-                client = SSEClient(response)
+                if response.status_code != 200:
+                    progress_container.error(f"❌ 后端返回错误状态码：{response.status_code}")
+                    st.stop()
 
                 # 存储各节点结果
                 node_results = {}
                 final_analysis_result = {}
                 final_quality_score = 0.0
+                has_error = False
 
-                # 实时处理事件
-                for event in client.events():
-                    if event.event == "ping":
-                        continue
-                    if event.event == "error":
-                        progress_container.error(f"❌ 执行出错：{json.loads(event.data)['error']}")
+                # 实时处理事件（使用自定义 SSE 解析器）
+                for node_name, node_data in parse_sse_stream(response):
+                    if node_name == "error":
+                        progress_container.error(f"❌ 执行出错：{node_data.get('error', '未知错误')}")
+                        has_error = True
                         break
 
-                    # 展示节点执行进度
-                    node_name = event.event
-                    node_data = json.loads(event.data)
                     node_results[node_name] = node_data
 
                     with progress_container:
@@ -224,6 +274,18 @@ if page == "竞品分析工作台":
                         final_analysis_result["research_results"] = node_data.get("research_results", [])
                     if node_name == "monitor":
                         final_analysis_result["changes_detected"] = node_data.get("changes_detected", [])
+
+                if has_error:
+                    st.stop()
+
+                # 检查是否收到有效分析结果
+                if not node_results:
+                    progress_container.warning(
+                        "⚠️ 未收到任何分析事件。可能原因："
+                        "1) 后端 Agent 执行超时；2) LLM API 调用失败。"
+                        "请检查后端日志或重试。"
+                    )
+                    st.stop()
 
                 # 分析完成，展示最终结果
                 with result_container:
@@ -519,4 +581,375 @@ elif page == "历史分析":
 # ------------------------------
 elif page == "系统配置":
     st.header("⚙️ 系统配置")
-    st.info("功能开发中：支持告警阈值、通知渠道、LLM参数配置")
+    st.caption("修改配置后点击保存立即生效，无需重启服务")
+
+    service_online = check_health()
+    if not service_online:
+        st.error("❌ 后端服务未启动，配置页不可用")
+        st.stop()
+
+    # ---------- 加载当前配置 ----------
+    @st.cache_data(ttl=5)
+    def load_current_config():
+        try:
+            resp = requests.get(f"{API_BASE_URL}/api/config", timeout=5)
+            if resp.status_code == 200:
+                return resp.json()
+        except Exception:
+            pass
+        return {"defaults": {}, "alert": {}, "notification": {}, "llm": {}, "pipeline": {}}
+
+    config_data = load_current_config()
+    defaults = config_data.get("defaults", {})
+    saved_alert = config_data.get("alert", {})
+    saved_notif = config_data.get("notification", {})
+    saved_llm = config_data.get("llm", {})
+
+    # ---------- Tab 布局 ----------
+    tab_alert, tab_notif, tab_llm, tab_sys, tab_extra = st.tabs([
+        "🚨 告警配置", "📢 通知配置", "🤖 LLM配置", "📊 系统信息", "📦 导入导出"
+    ])
+
+    # ==================== Tab 1: 告警配置 ====================
+    with tab_alert:
+        with st.form("alert_config_form"):
+            st.subheader("告警参数")
+            severity_options = ["low", "medium", "high", "critical"]
+            cur_severity = saved_alert.get("severity_threshold", defaults.get("alert", {}).get("severity_threshold", "high"))
+            severity_idx = severity_options.index(cur_severity) if cur_severity in severity_options else 2
+            severity_threshold = st.selectbox(
+                "告警严重程度阈值", severity_options, index=severity_idx,
+                help="仅达到或超过此级别的变更才会触发告警通知"
+            )
+
+            col1, col2 = st.columns(2)
+            with col1:
+                rate_limit = st.number_input(
+                    "每小时最大告警次数", min_value=1, max_value=100, step=1,
+                    value=int(saved_alert.get("rate_limit_per_hour", defaults.get("alert", {}).get("rate_limit_per_hour", 10))),
+                    help="防止告警轰炸，超过此数量后暂停发送"
+                )
+            with col2:
+                silence_min = st.number_input(
+                    "重复告警静默时间（分钟）", min_value=1, max_value=1440, step=5,
+                    value=int(saved_alert.get("silence_minutes", defaults.get("alert", {}).get("silence_minutes", 60))),
+                    help="同一告警在此时间窗口内不重复发送"
+                )
+
+            alert_saved = st.form_submit_button("💾 保存告警配置", use_container_width=True, type="primary")
+            if alert_saved:
+                alert_payload = {
+                    "severity_threshold": severity_threshold,
+                    "rate_limit_per_hour": rate_limit,
+                    "silence_minutes": silence_min,
+                }
+                try:
+                    resp = requests.put(f"{API_BASE_URL}/api/config", json={"alert": alert_payload}, timeout=5)
+                    if resp.status_code == 200:
+                        st.success("✅ 告警配置已保存，立即生效")
+                        st.cache_data.clear()
+                    else:
+                        st.error(f"❌ 保存失败：{resp.json().get('detail', '未知错误')}")
+                except Exception as e:
+                    st.error(f"❌ 请求失败：{str(e)}")
+
+    # ==================== Tab 2: 通知配置 ====================
+    with tab_notif:
+        notif_d = defaults.get("notification", {})
+        with st.form("notification_config_form"):
+            st.subheader("Slack 通知")
+            slack_enabled = st.checkbox("启用 Slack 通知", value=bool(saved_notif.get("slack_enabled", False)))
+            slack_webhook = st.text_input(
+                "Slack Webhook URL", type="password",
+                value=saved_notif.get("slack_webhook", notif_d.get("slack_webhook", "")),
+                placeholder="https://hooks.slack.com/services/..."
+            )
+            col_slack_test, _ = st.columns([1, 3])
+            with col_slack_test:
+                st.caption("")
+
+            st.divider()
+            st.subheader("钉钉通知")
+            dingtalk_enabled = st.checkbox("启用钉钉通知", value=bool(saved_notif.get("dingtalk_enabled", False)))
+            dingtalk_webhook = st.text_input(
+                "钉钉 Webhook URL", type="password",
+                value=saved_notif.get("dingtalk_webhook", notif_d.get("dingtalk_webhook", "")),
+                placeholder="https://oapi.dingtalk.com/robot/send?access_token=..."
+            )
+
+            st.divider()
+            st.subheader("邮件通知")
+            email_enabled = st.checkbox("启用邮件通知", value=bool(saved_notif.get("email_enabled", False)))
+            col_e1, col_e2 = st.columns(2)
+            with col_e1:
+                email_host = st.text_input("SMTP 服务器", value=saved_notif.get("email_smtp_host", notif_d.get("email_smtp_host", "")))
+                email_port = st.number_input("SMTP 端口", min_value=1, max_value=65535, value=int(saved_notif.get("email_smtp_port", notif_d.get("email_smtp_port", 587))))
+                email_from = st.text_input("发件人邮箱", value=saved_notif.get("email_from", notif_d.get("email_from", "")))
+            with col_e2:
+                email_password = st.text_input("邮箱密码", type="password", value=saved_notif.get("email_password", notif_d.get("email_password", "")))
+                email_to = st.text_input("收件人邮箱", value=saved_notif.get("email_to", notif_d.get("email_to", "")))
+
+            notif_saved = st.form_submit_button("💾 保存通知配置", use_container_width=True, type="primary")
+            if notif_saved:
+                notif_payload = {
+                    "slack_webhook": slack_webhook,
+                    "slack_enabled": slack_enabled,
+                    "dingtalk_webhook": dingtalk_webhook,
+                    "dingtalk_enabled": dingtalk_enabled,
+                    "email_smtp_host": email_host,
+                    "email_smtp_port": email_port,
+                    "email_from": email_from,
+                    "email_password": email_password,
+                    "email_to": email_to,
+                    "email_enabled": email_enabled,
+                }
+                try:
+                    resp = requests.put(f"{API_BASE_URL}/api/config", json={"notification": notif_payload}, timeout=5)
+                    if resp.status_code == 200:
+                        st.success("✅ 通知配置已保存，立即生效")
+                        st.cache_data.clear()
+                    else:
+                        st.error(f"❌ 保存失败：{resp.json().get('detail', '未知错误')}")
+                except Exception as e:
+                    st.error(f"❌ 请求失败：{str(e)}")
+
+        # 测试按钮（在表单外，避免与提交冲突）
+        st.subheader("🧪 测试通知")
+        col_t1, col_t2, col_t3 = st.columns(3)
+        with col_t1:
+            if st.button("测试 Slack 通知", use_container_width=True):
+                try:
+                    resp = requests.post(f"{API_BASE_URL}/api/config/test-notification", json={"channel": "slack"}, timeout=10)
+                    if resp.json().get("success"):
+                        st.success("✅ Slack 测试通知已发送")
+                    else:
+                        st.warning(f"⚠️ {resp.json().get('message', '发送失败')}")
+                except Exception as e:
+                    st.error(f"❌ {str(e)}")
+        with col_t2:
+            if st.button("测试钉钉通知", use_container_width=True):
+                try:
+                    resp = requests.post(f"{API_BASE_URL}/api/config/test-notification", json={"channel": "dingtalk"}, timeout=10)
+                    if resp.json().get("success"):
+                        st.success("✅ 钉钉测试通知已发送")
+                    else:
+                        st.warning(f"⚠️ {resp.json().get('message', '发送失败')}")
+                except Exception as e:
+                    st.error(f"❌ {str(e)}")
+        with col_t3:
+            if st.button("测试邮件通知", use_container_width=True):
+                try:
+                    resp = requests.post(f"{API_BASE_URL}/api/config/test-notification", json={"channel": "email"}, timeout=10)
+                    if resp.json().get("success"):
+                        st.success("✅ 邮件测试通知已发送")
+                    else:
+                        st.warning(f"⚠️ {resp.json().get('message', '发送失败')}")
+                except Exception as e:
+                    st.error(f"❌ {str(e)}")
+
+    # ==================== Tab 3: LLM配置 ====================
+    with tab_llm:
+        llm_d = defaults.get("llm", {})
+        with st.form("llm_config_form"):
+            st.subheader("大模型参数")
+            model_options = ["qwen-turbo", "qwen-plus", "qwen-max"]
+            cur_model = saved_llm.get("model", llm_d.get("model", "qwen-turbo"))
+            model_idx = model_options.index(cur_model) if cur_model in model_options else 0
+            llm_model = st.selectbox(
+                "模型名称", model_options, index=model_idx,
+                help="qwen-turbo：速度快成本低；qwen-plus：平衡性能；qwen-max：最强能力"
+            )
+
+            col_l1, col_l2 = st.columns(2)
+            with col_l1:
+                llm_temperature = st.slider(
+                    "温度值", min_value=0.0, max_value=2.0, step=0.05,
+                    value=float(saved_llm.get("temperature", llm_d.get("temperature", 0.7))),
+                    help="越高输出越随机/创造性，越低输出越确定/一致（Quality Check始终=0）"
+                )
+            with col_l2:
+                llm_max_tokens = st.number_input(
+                    "最大 Token 数", min_value=1000, max_value=128000, step=500,
+                    value=int(saved_llm.get("max_tokens", llm_d.get("max_tokens", 4096))),
+                    help="LLM单次响应的最大输出长度"
+                )
+
+            col_btn1, col_btn2 = st.columns(2)
+            with col_btn1:
+                llm_saved = st.form_submit_button("💾 保存LLM配置", use_container_width=True, type="primary")
+            with col_btn2:
+                llm_reset = st.form_submit_button("🔄 恢复默认", use_container_width=True)
+
+            if llm_saved:
+                llm_payload = {
+                    "model": llm_model,
+                    "temperature": llm_temperature,
+                    "max_tokens": llm_max_tokens,
+                }
+                try:
+                    resp = requests.put(f"{API_BASE_URL}/api/config", json={"llm": llm_payload}, timeout=5)
+                    if resp.status_code == 200:
+                        st.success("✅ LLM配置已保存，所有Agent立即生效")
+                        st.cache_data.clear()
+                    else:
+                        st.error(f"❌ 保存失败：{resp.json().get('detail', '未知错误')}")
+                except Exception as e:
+                    st.error(f"❌ 请求失败：{str(e)}")
+
+            if llm_reset:
+                try:
+                    resp = requests.post(f"{API_BASE_URL}/api/config/reset-llm", timeout=5)
+                    if resp.status_code == 200:
+                        st.success("✅ LLM配置已恢复为系统默认值")
+                        st.cache_data.clear()
+                        st.rerun()
+                    else:
+                        st.error("❌ 恢复默认失败")
+                except Exception as e:
+                    st.error(f"❌ 请求失败：{str(e)}")
+
+        # 追加：质量门槛配置
+        with st.form("pipeline_config_form"):
+            st.subheader("分析流水线参数")
+            pipe_d = defaults.get("pipeline", {})
+            col_p1, col_p2 = st.columns(2)
+            with col_p1:
+                quality_threshold = st.slider(
+                    "质量评分阈值", min_value=1.0, max_value=10.0, step=0.5,
+                    value=float(saved_alert.get("quality_threshold", pipe_d.get("quality_threshold", 7.0))),
+                    help="Quality Check评分低于此值时触发重试"
+                )
+            with col_p2:
+                max_retries = st.number_input(
+                    "最大重试次数", min_value=0, max_value=10, step=1,
+                    value=int(saved_alert.get("max_reflexion_retries", pipe_d.get("max_reflexion_retries", 3))),
+                    help="Quality Check不达标时的最大Research重试次数"
+                )
+            pipe_saved = st.form_submit_button("💾 保存流水线参数", use_container_width=True, type="primary")
+            if pipe_saved:
+                try:
+                    resp = requests.put(f"{API_BASE_URL}/api/config", json={"pipeline": {"quality_threshold": quality_threshold, "max_reflexion_retries": max_retries}}, timeout=5)
+                    if resp.status_code == 200:
+                        st.success("✅ 流水线参数已保存")
+                        st.cache_data.clear()
+                    else:
+                        st.error(f"❌ 保存失败：{resp.json().get('detail', '未知错误')}")
+                except Exception as e:
+                    st.error(f"❌ 请求失败：{str(e)}")
+
+    # ==================== Tab 4: 系统信息 ====================
+    with tab_sys:
+        st.subheader("📊 系统运行状态")
+        try:
+            resp = requests.get(f"{API_BASE_URL}/api/system-info", timeout=5)
+            if resp.status_code == 200:
+                info = resp.json()
+                col_s1, col_s2, col_s3 = st.columns(3)
+                with col_s1:
+                    st.metric("Python 版本", info.get("python_version", "").split()[0])
+                with col_s2:
+                    st.metric("平台", "Windows" if "win" in info.get("platform", "") else "Linux")
+                with col_s3:
+                    st.metric("进程 PID", info.get("pid", "N/A"))
+
+                col_s4, col_s5, col_s6 = st.columns(3)
+                db_stats = info.get("db_stats", {})
+                with col_s4:
+                    st.metric("竞品数量", db_stats.get("competitor_count", 0))
+                with col_s5:
+                    st.metric("分析记录", db_stats.get("analysis_count", 0))
+                with col_s6:
+                    st.metric("配置项数", db_stats.get("config_count", 0))
+
+                col_s7, col_s8 = st.columns(2)
+                with col_s7:
+                    st.metric("内存使用", f"{info.get('memory_mb', 'N/A')} MB")
+                with col_s8:
+                    st.metric("CPU 使用率", f"{info.get('cpu_percent', 'N/A')}%")
+
+                # 后端健康状态
+                health_resp = requests.get(f"{API_BASE_URL}/health", timeout=3)
+                if health_resp.status_code == 200:
+                    st.success(f"✅ 后端服务正常运行 | 时间：{health_resp.json().get('timestamp', 'N/A')}")
+            else:
+                st.warning("⚠️ 无法获取系统信息")
+        except Exception as e:
+            st.error(f"获取系统信息失败：{str(e)}")
+
+    # ==================== Tab 5: 导入导出 ====================
+    with tab_extra:
+        st.subheader("📦 配置导入导出")
+
+        col_exp, col_imp = st.columns(2)
+        with col_exp:
+            st.markdown("**导出配置**")
+            st.caption("将所有配置项导出为 JSON 文件，用于备份或迁移")
+            if st.button("📥 导出 JSON", use_container_width=True):
+                try:
+                    resp = requests.get(f"{API_BASE_URL}/api/config/export", timeout=5)
+                    if resp.status_code == 200:
+                        export_json = json.dumps(resp.json(), ensure_ascii=False, indent=2)
+                        st.download_button(
+                            label="💾 下载配置文件",
+                            data=export_json,
+                            file_name=f"ci_config_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
+                            mime="application/json",
+                            use_container_width=True,
+                        )
+                        st.success("✅ 导出成功，点击上方按钮下载")
+                except Exception as e:
+                    st.error(f"导出失败：{str(e)}")
+
+        with col_imp:
+            st.markdown("**导入配置**")
+            st.caption("从之前导出的 JSON 文件恢复配置")
+            uploaded_file = st.file_uploader("选择配置文件", type=["json"], label_visibility="collapsed")
+            if uploaded_file is not None:
+                try:
+                    import_data = json.loads(uploaded_file.read())
+                    resp = requests.post(f"{API_BASE_URL}/api/config/import", json=import_data, timeout=10)
+                    if resp.status_code == 200:
+                        st.success(f"✅ 成功导入 {resp.json().get('imported_count', 0)} 个配置项")
+                        st.cache_data.clear()
+                        st.rerun()
+                    else:
+                        st.error(f"❌ 导入失败：{resp.json().get('detail', '未知错误')}")
+                except json.JSONDecodeError:
+                    st.error("❌ JSON 格式错误")
+                except Exception as e:
+                    st.error(f"❌ 导入失败：{str(e)}")
+
+        st.divider()
+        st.subheader("🕰️ 配置版本历史")
+        config_key_filter = st.selectbox("选择配置项", ["全部", "alert", "notification", "llm", "pipeline"])
+        try:
+            params = {} if config_key_filter == "全部" else {"key": config_key_filter}
+            hist_resp = requests.get(f"{API_BASE_URL}/api/config/history", params=params, timeout=5)
+            if hist_resp.status_code == 200:
+                history = hist_resp.json()
+                if not history:
+                    st.info("暂无版本历史记录")
+                else:
+                    for entry in history[:20]:
+                        with st.container(border=True):
+                            col_h1, col_h2, col_h3 = st.columns([2, 1, 1])
+                            with col_h1:
+                                st.markdown(f"**{entry['config_key']}** v{entry['version']}")
+                                st.caption(f"{entry['created_at'].replace('T', ' ').split('.')[0]}")
+                            with col_h2:
+                                st.json(entry["value"], expanded=False)
+                            with col_h3:
+                                if st.button(f"⏪ 回滚", key=f"rollback_{entry['id']}", use_container_width=True):
+                                    roll_resp = requests.post(
+                                        f"{API_BASE_URL}/api/config/rollback",
+                                        json={"key": entry["config_key"], "version": entry["version"]},
+                                        timeout=5
+                                    )
+                                    if roll_resp.status_code == 200:
+                                        st.success(f"✅ 已回滚 {entry['config_key']} 到 v{entry['version']}")
+                                        st.cache_data.clear()
+                                        st.rerun()
+                                    else:
+                                        st.error("回滚失败")
+        except Exception as e:
+            st.error(f"获取历史失败：{str(e)}")

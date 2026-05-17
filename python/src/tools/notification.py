@@ -1,4 +1,7 @@
-"""Notification dispatcher – Slack, DingTalk, and Email."""
+"""Notification dispatcher – Slack, DingTalk, and Email.
+
+所有通知渠道配置从动态配置系统读取，支持运行时修改即时生效。
+"""
 
 from __future__ import annotations
 
@@ -10,13 +13,13 @@ from typing import Optional
 
 import httpx
 
-from ..config import config
+from ..config import get_effective_notification_config
 
 logger = logging.getLogger(__name__)
 
 
 async def send_slack(message: str, webhook_url: Optional[str] = None) -> bool:
-    url = webhook_url or config.notification.slack_webhook
+    url = webhook_url or get_effective_notification_config().slack_webhook
     if not url:
         logger.info("Slack webhook not configured – skipping")
         return False
@@ -26,7 +29,7 @@ async def send_slack(message: str, webhook_url: Optional[str] = None) -> bool:
 
 
 async def send_dingtalk(message: str, webhook_url: Optional[str] = None) -> bool:
-    url = webhook_url or config.notification.dingtalk_webhook
+    url = webhook_url or get_effective_notification_config().dingtalk_webhook
     if not url:
         logger.info("DingTalk webhook not configured – skipping")
         return False
@@ -42,9 +45,11 @@ async def send_dingtalk(message: str, webhook_url: Optional[str] = None) -> bool
 async def send_email(
     subject: str,
     body: str,
-    to_addrs: list[str],
+    to_addrs: Optional[list[str]] = None,
 ) -> bool:
-    cfg = config.notification
+    cfg = get_effective_notification_config()
+    if to_addrs is None:
+        to_addrs = [cfg.email_to] if cfg.email_to else []
     if not cfg.email_smtp_host or not to_addrs:
         logger.info("Email not configured – skipping")
         return False
@@ -66,7 +71,10 @@ async def send_email(
 async def broadcast_alert(title: str, message: str) -> dict[str, bool]:
     """Send an alert to all configured channels and return delivery status."""
     full_message = f"🚨 *{title}*\n{message}"
-    return {
-        "slack": await send_slack(full_message),
-        "dingtalk": await send_dingtalk(full_message),
-    }
+    cfg = get_effective_notification_config()
+    result = {}
+    if cfg.slack_enabled or cfg.slack_webhook:
+        result["slack"] = await send_slack(full_message)
+    if cfg.dingtalk_enabled or cfg.dingtalk_webhook:
+        result["dingtalk"] = await send_dingtalk(full_message)
+    return result

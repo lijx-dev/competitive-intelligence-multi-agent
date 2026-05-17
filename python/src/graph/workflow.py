@@ -50,7 +50,7 @@ from ..agents.battlecard_agent import BattlecardAgent
 from ..agents.compare_agent import CompareAgent
 from ..agents.monitor_agent import MonitorAgent
 from ..agents.research_agent import ResearchAgent
-from ..config import config
+from ..config import get_effective_llm_config, get_effective_quality_threshold, get_effective_max_reflexion_retries
 
 logger = logging.getLogger(__name__)
 
@@ -100,10 +100,11 @@ async def quality_check(state: dict[str, Any]) -> dict[str, Any]:
     from langchain_core.messages import HumanMessage, SystemMessage
     from langchain_community.chat_models import ChatTongyi
 
+    llm_cfg = get_effective_llm_config()
     llm = ChatTongyi(
-        model=config.llm.model,
-        api_key=config.llm.api_key,
-        temperature=0.0,
+        model=llm_cfg.model,
+        api_key=llm_cfg.api_key,
+        temperature=0.0,  # quality_check 始终使用 temperature=0 确保评分稳定
     )
 
     battlecard = state.get("battlecard", {})
@@ -147,12 +148,13 @@ def _should_retry(state: dict[str, Any]) -> str:
     """Conditional edge: retry research if quality is below threshold."""
     score = state.get("quality_score", 0)
     count = state.get("reflexion_count", 0)
-    max_retries = config.max_reflexion_retries
+    max_retries = get_effective_max_reflexion_retries()
+    threshold = get_effective_quality_threshold()
 
-    if score < config.quality_threshold and count < max_retries:
+    if score < threshold and count < max_retries:
         logger.info(
             "Quality %.1f < %.1f (attempt %d/%d) → retrying research",
-            score, config.quality_threshold, count, max_retries,
+            score, threshold, count, max_retries,
         )
         return "research"
     return END

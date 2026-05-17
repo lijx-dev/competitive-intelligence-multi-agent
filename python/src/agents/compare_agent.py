@@ -47,12 +47,14 @@ DIMENSIONS = [
 
 class CompareAgent:
 
-    def __init__(self) -> None:
-        self.llm = ChatTongyi(
-            model=config.llm.model,
-            api_key=config.llm.api_key,
-            temperature=config.llm.temperature,
-            max_tokens=config.llm.max_tokens,
+    def _get_llm(self):
+        """每次调用时从动态配置读取 LLM 参数，确保配置修改即时生效。"""
+        cfg = get_effective_llm_config()
+        return ChatTongyi(
+            model=cfg.model,
+            api_key=cfg.api_key,
+            temperature=cfg.temperature,
+            max_tokens=cfg.max_tokens,
         )
 
     async def compare(
@@ -69,7 +71,7 @@ class CompareAgent:
             "Generate a comparison matrix as JSON."
         )
 
-        response = await self.llm.ainvoke([
+        response = await self._get_llm().ainvoke([
             SystemMessage(content=SYSTEM_PROMPT),
             HumanMessage(content=user_msg),
         ])

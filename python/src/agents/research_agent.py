@@ -9,7 +9,7 @@ from typing import Any
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_community.chat_models import ChatTongyi
 
-from ..config import config
+from ..config import get_effective_llm_config
 from ..models.schemas import ResearchInsight
 from ..tools.search_tool import news_search, web_search
 
@@ -33,12 +33,14 @@ Be factual and cite sources where possible.
 
 class ResearchAgent:
 
-    def __init__(self) -> None:
-        self.llm = ChatTongyi(
-            model=config.llm.model,
-            api_key=config.llm.api_key,
-            temperature=config.llm.temperature,
-            max_tokens=config.llm.max_tokens,
+    def _get_llm(self):
+        """每次调用时从动态配置读取 LLM 参数，确保配置修改即时生效。"""
+        cfg = get_effective_llm_config()
+        return ChatTongyi(
+            model=cfg.model,
+            api_key=cfg.api_key,
+            temperature=cfg.temperature,
+            max_tokens=cfg.max_tokens,
         )
 
     async def analyze(
@@ -61,7 +63,7 @@ class ResearchAgent:
             "Provide deep research insights as JSON."
         )
 
-        response = await self.llm.ainvoke([
+        response = await self._get_llm().ainvoke([
             SystemMessage(content=SYSTEM_PROMPT),
             HumanMessage(content=user_msg),
         ])
