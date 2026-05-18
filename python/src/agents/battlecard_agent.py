@@ -9,7 +9,7 @@ from typing import Any
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_community.chat_models import ChatTongyi
 
-from ..config import config
+from ..config import get_effective_llm_config
 from ..models.schemas import Battlecard
 
 logger = logging.getLogger(__name__)

@@ -61,6 +61,26 @@ def init_db():
     )
     ''')
 
+    # 5. 我方产品信息表（单行：存储我方产品的结构化信息）
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS our_product (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        name TEXT NOT NULL DEFAULT 'My Product',
+        core_features TEXT NOT NULL DEFAULT '[]',
+        pricing_model TEXT NOT NULL DEFAULT '订阅制',
+        tech_stack TEXT NOT NULL DEFAULT '[]',
+        target_market TEXT NOT NULL DEFAULT '',
+        competitive_advantages TEXT NOT NULL DEFAULT '[]',
+        weaknesses TEXT NOT NULL DEFAULT '[]',
+        updated_at TEXT NOT NULL
+    )
+    ''')
+    # 确保始终存在一行（id=1 的单行约束）
+    cursor.execute('''
+    INSERT OR IGNORE INTO our_product (id, name, core_features, pricing_model, tech_stack, target_market, competitive_advantages, weaknesses, updated_at)
+    VALUES (1, 'My Product', '[]', '订阅制', '[]', '', '[]', '[]', datetime('now'))
+    ''')
+
     conn.commit()
     conn.close()
 
@@ -411,3 +431,58 @@ def get_db_stats() -> Dict[str, Any]:
         "analysis_count": analysis_count,
         "config_count": config_count,
     }
+
+
+# ============================================================
+# 我方产品信息 CRUD（单行表，id 固定为 1）
+# ============================================================
+
+OUR_PRODUCT_COLS = [
+    "name", "core_features", "pricing_model", "tech_stack",
+    "target_market", "competitive_advantages", "weaknesses",
+]
+
+
+def get_our_product() -> Dict[str, Any]:
+    """获取我方产品信息，JSON 字段自动反序列化为 list/dict"""
+    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+    cursor = conn.cursor()
+    cursor.execute(f'''SELECT {", ".join(OUR_PRODUCT_COLS)}, updated_at FROM our_product WHERE id = 1''')
+    row = cursor.fetchone()
+    conn.close()
+    if not row:
+        return {col: [] if col in ("core_features", "tech_stack", "competitive_advantages", "weaknesses") else "" for col in OUR_PRODUCT_COLS}
+    result = {"updated_at": row[-1]}
+    for i, col in enumerate(OUR_PRODUCT_COLS):
+        val = row[i]
+        if col in ("core_features", "tech_stack", "competitive_advantages", "weaknesses"):
+            try:
+                result[col] = json.loads(val)
+            except (json.JSONDecodeError, TypeError):
+                result[col] = []
+        else:
+            result[col] = val or ""
+    return result
+
+
+def update_our_product(data: Dict[str, Any]) -> Dict[str, Any]:
+    """更新我方产品信息，JSON 字段自动序列化"""
+    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+    now = datetime.utcnow().isoformat()
+    sets = []
+    values = []
+    for col in OUR_PRODUCT_COLS:
+        if col in data:
+            val = data[col]
+            if isinstance(val, list):
+                val = json.dumps(val, ensure_ascii=False)
+            sets.append(f"{col} = ?")
+            values.append(val)
+    sets.append("updated_at = ?")
+    values.append(now)
+    values.append(1)  # WHERE id = 1
+    cursor = conn.cursor()
+    cursor.execute(f"UPDATE our_product SET {', '.join(sets)} WHERE id = ?", values)
+    conn.commit()
+    conn.close()
+    return get_our_product()

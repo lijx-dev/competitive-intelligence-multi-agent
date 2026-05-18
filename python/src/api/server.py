@@ -21,6 +21,8 @@ from ..db.sqlite import (
     get_config_history,
     rollback_config,
     get_db_stats,
+    get_our_product,
+    update_our_product,
 )
 # 新增：Pydantic模型导入
 from pydantic import BaseModel, Field
@@ -167,11 +169,16 @@ async def analyze(req: AnalyzeRequest):
         "competitor": req.competitor,
         "monitor_urls": req.urls or [],
         "previous_hashes": {},
+        "our_product_info": get_our_product(),
         "changes_detected": [],
         "research_results": [],
         "comparison_matrix": None,
         "battlecard": None,
         "alerts_sent": [],
+        "fact_check_result": {},
+        "review_feedback": {},
+        "citation_report": {},
+        "targeted_fix_count": 0,
         "quality_score": 0.0,
         "reflexion_count": 0,
         "error": None,
@@ -242,11 +249,16 @@ async def analyze_stream(req: AnalyzeRequest):
             "competitor": req.competitor,
             "monitor_urls": req.urls or [],
             "previous_hashes": {},
+            "our_product_info": get_our_product(),
             "changes_detected": [],
             "research_results": [],
             "comparison_matrix": {},
             "battlecard": {},
             "alerts_sent": [],
+            "fact_check_result": {},
+            "review_feedback": {},
+            "citation_report": {},
+            "targeted_fix_count": 0,
             "quality_score": 0.0,
             "reflexion_count": 0,
             "error": None,
@@ -499,3 +511,34 @@ async def api_system_info():
         "cpu_percent": process.cpu_percent(interval=0.1) if process else "N/A",
         "pid": os.getpid(),
     }
+
+
+# ==================================================================
+#  我方产品管理 API
+# ==================================================================
+
+class OurProductUpdateRequest(BaseModel):
+    """我方产品信息更新请求体"""
+    name: str = "My Product"
+    core_features: List[str] = Field(default_factory=list)
+    pricing_model: str = "订阅制"
+    tech_stack: List[str] = Field(default_factory=list)
+    target_market: str = ""
+    competitive_advantages: List[str] = Field(default_factory=list)
+    weaknesses: List[str] = Field(default_factory=list)
+
+
+@app.get("/api/our-product", summary="获取我方产品信息")
+async def api_get_our_product():
+    """获取我方产品结构化信息，用于对比分析。"""
+    return get_our_product()
+
+
+@app.put("/api/our-product", summary="更新我方产品信息")
+async def api_update_our_product(req: OurProductUpdateRequest):
+    """更新我方产品信息，保存后下次分析立即生效。"""
+    try:
+        result = update_our_product(req.model_dump())
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"更新失败：{str(e)}")

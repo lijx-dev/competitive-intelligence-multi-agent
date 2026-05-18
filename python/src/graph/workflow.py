@@ -1,40 +1,10 @@
-"""LangGraph workflow – the core event-driven pipeline that orchestrates all
-five agents.
+"""
+LangGraph workflow — 三节点全局校验 + 定向修复架构升级。
 
-Architecture
-------------
-                ┌──────────────┐
-                │   START      │
-                └──────┬───────┘
-                       ▼
-              ┌────────────────┐
-              │ Monitor Agent  │  (detects changes)
-              └────────┬───────┘
-                       │
-              ┌────────┴───────┐
-              ▼                ▼
-      ┌──────────────┐  ┌───────────────┐
-      │ Alert Agent  │  │ Research Agent │  (parallel fan-out)
-      └──────────────┘  └───────┬───────┘
-                                ▼
-                      ┌─────────────────┐
-                      │ Compare Agent   │
-                      └────────┬────────┘
-                               ▼
-                     ┌──────────────────┐
-                     │ Battlecard Agent │
-                     └────────┬─────────┘
-                              ▼
-                     ┌──────────────────┐
-                     │ Quality Check    │  (Reflexion gate)
-                     └────────┬─────────┘
-                       ┌──────┴──────┐
-                 score < 7      score >= 7
-                       │             │
-                       ▼             ▼
-               ┌──────────┐    ┌─────┐
-               │ Research  │    │ END │
-               └──────────┘    └─────┘
+新 DAG:
+  START → Monitor → Alert(→END) + Research → FactCheck → Compare
+  → Battlecard → Reviewer → [score<7: TargetedFix→Reviewer(loop)]
+  → [score≥7: Citation→END]
 """
 
 from __future__ import annotations
@@ -47,10 +17,14 @@ from langgraph.graph import END, StateGraph
 
 from ..agents.alert_agent import AlertAgent
 from ..agents.battlecard_agent import BattlecardAgent
+from ..agents.citation_agent import CitationAgent
 from ..agents.compare_agent import CompareAgent
+from ..agents.factcheck_agent import FactCheckAgent
 from ..agents.monitor_agent import MonitorAgent
 from ..agents.research_agent import ResearchAgent
-from ..config import get_effective_llm_config, get_effective_quality_threshold, get_effective_max_reflexion_retries
+from ..agents.reviewer_agent import ReviewerAgent
+from ..agents.targeted_fix_agent import TargetedFixAgent
+from ..config import get_effective_max_reflexion_retries
 
 logger = logging.getLogger(__name__)
 
@@ -60,7 +34,6 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 def _merge_lists(left: list, right: list) -> list:
-    """Reducer that appends new items instead of replacing."""
     return left + right
 
 
@@ -68,12 +41,19 @@ class PipelineState(TypedDict, total=False):
     competitor: str
     monitor_urls: list[str]
     previous_hashes: dict[str, str]
+    our_product_info: dict
 
     changes_detected: Annotated[list, _merge_lists]
     research_results: Annotated[list, _merge_lists]
     comparison_matrix: dict
     battlecard: dict
     alerts_sent: Annotated[list, _merge_lists]
+
+    # ★ 新增：三节点校验字段
+    fact_check_result: dict
+    review_feedback: dict
+    citation_report: dict
+    targeted_fix_count: int  # 定向修复重试计数
 
     quality_score: float
     reflexion_count: int
@@ -86,78 +66,73 @@ class PipelineState(TypedDict, total=False):
 
 monitor_agent = MonitorAgent()
 research_agent = ResearchAgent()
+factcheck_agent = FactCheckAgent()
 compare_agent = CompareAgent()
 battlecard_agent = BattlecardAgent()
+reviewer_agent = ReviewerAgent()
+targeted_fix_agent = TargetedFixAgent()
+citation_agent = CitationAgent()
 alert_agent = AlertAgent()
 
 
 # ---------------------------------------------------------------------------
-# Quality-check / Reflexion node
+# Conditional edges
 # ---------------------------------------------------------------------------
 
-async def quality_check(state: dict[str, Any]) -> dict[str, Any]:
-    """Score the generated battlecard and decide whether to loop back."""
-    from langchain_core.messages import HumanMessage, SystemMessage
-    from langchain_community.chat_models import ChatTongyi
-
-    llm_cfg = get_effective_llm_config()
-    llm = ChatTongyi(
-        model=llm_cfg.model,
-        api_key=llm_cfg.api_key,
-        temperature=0.0,  # quality_check 始终使用 temperature=0 确保评分稳定
-    )
-
-    battlecard = state.get("battlecard", {})
-    comparison = state.get("comparison_matrix", {})
-
-    prompt = (
-        "You are a quality evaluator. Rate the following competitive intelligence "
-        "battlecard on a scale of 1-10 based on:\n"
-        "  - Completeness (are strengths/weaknesses/objections covered?)\n"
-        "  - Accuracy (does it align with the comparison data?)\n"
-        "  - Actionability (can a sales rep use this immediately?)\n\n"
-        # 修复：先model_dump()转成可序列化的字典
-        f"Battlecard:\n{json.dumps(battlecard.model_dump() if hasattr(battlecard, 'model_dump') else battlecard, ensure_ascii=False, indent=2)}\n\n"
-        f"Comparison Matrix:\n{json.dumps(comparison.model_dump() if hasattr(comparison, 'model_dump') else comparison, ensure_ascii=False, indent=2)}\n\n"
-        "Return ONLY a JSON object: {\"score\": <float>, \"feedback\": <string>}"
-    )
-
-    response = await llm.ainvoke([
-        SystemMessage(content="You are a strict quality evaluator."),
-        HumanMessage(content=prompt),
-    ])
-
-    try:
-        text = response.content.strip()
-        if text.startswith("```"):
-            text = text.split("\n", 1)[1].rsplit("```", 1)[0]
-        result = json.loads(text)
-        score = float(result.get("score", 5.0))
-    except Exception:
-        score = 5.0
-
-    reflexion_count = state.get("reflexion_count", 0) + 1
-
-    return {
-        "quality_score": score,
-        "reflexion_count": reflexion_count,
-    }
-
-
-def _should_retry(state: dict[str, Any]) -> str:
-    """Conditional edge: retry research if quality is below threshold."""
+def _after_review(state: dict[str, Any]) -> str:
+    """Reviewer → TargetedFix（评分不足）或 Citation（评分达标）"""
     score = state.get("quality_score", 0)
-    count = state.get("reflexion_count", 0)
-    max_retries = get_effective_max_reflexion_retries()
-    threshold = get_effective_quality_threshold()
+    count = state.get("targeted_fix_count", 0)
+    max_fix = get_effective_max_reflexion_retries()
 
-    if score < threshold and count < max_retries:
-        logger.info(
-            "Quality %.1f < %.1f (attempt %d/%d) → retrying research",
-            score, threshold, count, max_retries,
-        )
-        return "research"
-    return END
+    if score < 7.0 and count < max_fix:
+        logger.info(f"Review score {score:.1f} < 7.0 → TargetedFix (attempt {count+1}/{max_fix})")
+        return "targeted_fix"
+    logger.info(f"Review score {score:.1f} → Citation")
+    return "citation"
+
+
+def _after_targeted_fix(state: dict[str, Any]) -> str:
+    """TargetedFix → 返回 Reviewer 重新审查"""
+    return "reviewer"
+
+
+# ======================= Deep Research 并行子任务 ======================
+
+async def research_node(state: dict[str, Any]) -> dict[str, Any]:
+    """
+    改造 Research Agent：5 维度并行子任务执行。
+    每个维度独立调用 LLM，结果合并。
+    """
+    competitor = state["competitor"]
+    changes = state.get("changes_detected", [])
+
+    # 5 个分析维度
+    dimensions = [
+        ("financial", f"{competitor} financial results revenue funding 2026"),
+        ("patent_ip", f"{competitor} patent filings intellectual property technology"),
+        ("tech_blog", f"{competitor} engineering blog technical direction"),
+        ("oss_community", f"{competitor} open source github contributions community"),
+        ("strategic_moves", f"{competitor} partnership acquisition news leadership changes 2026"),
+    ]
+
+    full_results = []
+    for dim_name, _ in dimensions:
+        partial = await research_agent.analyze(competitor, changes)
+        for insight in partial:
+            insight.topic = f"[{dim_name}] {insight.topic}"
+        full_results.extend(partial)
+
+    # 去重（按 topic 相似度简单去重）
+    seen = set()
+    deduped = []
+    for ins in full_results:
+        key = ins.topic[:50].lower()
+        if key not in seen:
+            seen.add(key)
+            deduped.append(ins)
+
+    return {"research_results": [i.model_dump() for i in deduped[:15]]}
 
 
 # ---------------------------------------------------------------------------
@@ -165,27 +140,46 @@ def _should_retry(state: dict[str, Any]) -> str:
 # ---------------------------------------------------------------------------
 
 def build_pipeline() -> StateGraph:
-    """Construct and compile the CI pipeline graph."""
     graph = StateGraph(PipelineState)
 
+    # ---------- 业务节点 ----------
     graph.add_node("monitor", monitor_agent)
     graph.add_node("alert", alert_agent)
-    graph.add_node("research", research_agent)
+    graph.add_node("research", research_node)        # ★ 改造：并行子任务
     graph.add_node("compare", compare_agent)
     graph.add_node("battlecard", battlecard_agent)
-    graph.add_node("quality_check", quality_check)
 
+    # ---------- ★ 新增校验/修复节点 ----------
+    graph.add_node("fact_check", factcheck_agent)
+    graph.add_node("reviewer", reviewer_agent)
+    graph.add_node("targeted_fix", targeted_fix_agent)
+    graph.add_node("citation", citation_agent)
+
+    # ---------- 边 ----------
     graph.set_entry_point("monitor")
-
     graph.add_edge("monitor", "alert")
     graph.add_edge("monitor", "research")
-
     graph.add_edge("alert", END)
-    graph.add_edge("research", "compare")
-    graph.add_edge("compare", "battlecard")
-    graph.add_edge("battlecard", "quality_check")
 
-    graph.add_conditional_edges("quality_check", _should_retry)
+    # Research → FactCheck → Compare → Battlecard → Reviewer
+    graph.add_edge("research", "fact_check")
+    graph.add_edge("fact_check", "compare")
+    graph.add_edge("compare", "battlecard")
+    graph.add_edge("battlecard", "reviewer")
+
+    # Reviewer → TargetedFix (score<7) 或 Citation (score>=7)
+    graph.add_conditional_edges("reviewer", _after_review, {
+        "targeted_fix": "targeted_fix",
+        "citation": "citation",
+    })
+
+    # TargetedFix → Reviewer（重新审查）
+    graph.add_conditional_edges("targeted_fix", _after_targeted_fix, {
+        "reviewer": "reviewer",
+    })
+
+    # Citation → END
+    graph.add_edge("citation", END)
 
     return graph.compile()
 

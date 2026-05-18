@@ -73,7 +73,7 @@ API_BASE_URL = "http://localhost:8000"
 with st.sidebar:
     st.title("📊 竞品情报系统")
     st.divider()
-    page = st.radio("功能导航", ["竞品分析工作台", "竞品管理", "历史分析", "系统配置"])
+    page = st.radio("功能导航", ["竞品分析工作台", "竞品管理", "我方产品", "历史分析", "系统配置"])
     st.divider()
     st.caption("基于多Agent架构的企业级竞品情报分析平台")
 
@@ -250,6 +250,14 @@ if page == "竞品分析工作台":
                 final_quality_score = 0.0
                 has_error = False
 
+                # 节点颜色映射：业务=蓝 / 校验=橙 / 修复=黄 / 溯源=绿
+                NODE_COLORS = {
+                    "monitor": "🔵", "alert": "🔵", "research": "🔵",
+                    "compare": "🔵", "battlecard": "🔵",
+                    "fact_check": "🟠", "reviewer": "🟠",
+                    "targeted_fix": "🟡", "citation": "🟢",
+                }
+
                 # 实时处理事件（使用自定义 SSE 解析器）
                 for node_name, node_data in parse_sse_stream(response):
                     if node_name == "error":
@@ -258,12 +266,16 @@ if page == "竞品分析工作台":
                         break
 
                     node_results[node_name] = node_data
+                    icon = NODE_COLORS.get(node_name, "✅")
 
                     with progress_container:
-                        with st.expander(f"✅ {node_name} 节点执行完成", expanded=True):
+                        with st.expander(f"{icon} {node_name} 节点执行完成", expanded=True):
                             st.json(node_data, expanded=False)
 
-                    # 保存最终结果
+                    # 保存最终结果 — 原有节点
+                    if node_name == "reviewer":
+                        final_quality_score = node_data.get("quality_score", 0.0)
+                        final_analysis_result["review_feedback"] = node_data.get("review_feedback", node_data)
                     if node_name == "quality_check":
                         final_quality_score = node_data.get("quality_score", 0.0)
                     if node_name == "battlecard":
@@ -274,6 +286,11 @@ if page == "竞品分析工作台":
                         final_analysis_result["research_results"] = node_data.get("research_results", [])
                     if node_name == "monitor":
                         final_analysis_result["changes_detected"] = node_data.get("changes_detected", [])
+                    # ★ 新增校验节点
+                    if node_name == "fact_check":
+                        final_analysis_result["fact_check_result"] = node_data.get("fact_check_result", node_data)
+                    if node_name == "citation":
+                        final_analysis_result["citation_report"] = node_data.get("citation_report", node_data)
 
                 if has_error:
                     st.stop()
@@ -308,8 +325,9 @@ if page == "竞品分析工作台":
                         st.metric("最终质量评分", f"{final_quality_score}/10")
 
                     # 分Tab展示结果
-                    tab1, tab2, tab3, tab4 = st.tabs([
-                        "📈 对比矩阵", "🎯 销售战术卡", "🔎 研究洞察", "⚠️ 变更监控"
+                    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+                        "📈 对比矩阵", "🎯 销售战术卡", "🔎 研究洞察",
+                        "⚠️ 变更监控", "🛡️ 质量审查报告", "🔗 引用溯源报告"
                     ])
 
                     # 对比矩阵
@@ -381,6 +399,75 @@ if page == "竞品分析工作台":
                             else:
                                 for change in changes:
                                     st.write(f"[{change['severity']}] {change['title']}")
+
+                    # ★ 新增 Tab 5：质量审查报告
+                    with tab5:
+                        st.subheader("🛡️ 质量审查报告")
+                        review_fb = final_analysis_result.get("review_feedback", {})
+                        if review_fb:
+                            col_r1, col_r2, col_r3, col_r4 = st.columns(4)
+                            with col_r1:
+                                st.metric("综合评分", f"{review_fb.get('overall_score', 0):.1f}/10")
+                            with col_r2:
+                                st.metric("准确度", f"{review_fb.get('accuracy_score', 0):.1f}/10")
+                            with col_r3:
+                                st.metric("完整度", f"{review_fb.get('completeness_score', 0):.1f}/10")
+                            with col_r4:
+                                st.metric("可操作性", f"{review_fb.get('actionability_score', 0):.1f}/10")
+
+                            approved = review_fb.get("approved", False)
+                            if approved:
+                                st.success("✅ 审查通过 — 报告质量达标")
+                            else:
+                                st.warning("⚠️ 审查未通过 — 已触发定向修复")
+
+                            issues = review_fb.get("issues", [])
+                            if issues:
+                                st.markdown(f"**发现问题 ({len(issues)} 条)**")
+                                for iss in issues:
+                                    sev_icon = {"high": "🔴", "medium": "🟡", "low": "🟢"}.get(iss.get("severity", ""), "⚪")
+                                    with st.expander(f"{sev_icon} [{iss.get('severity', '?')}] {iss.get('target', '')}"):
+                                        st.markdown(f"**问题**: {iss.get('description', '')}")
+                                        st.markdown(f"**修复建议**: {iss.get('fix_instruction', '')}")
+                            st.divider()
+                            st.caption(f"修订指令: {review_fb.get('revision_instructions', '无')[:300]}")
+                        elif final_quality_score > 0:
+                            st.metric("综合评分（旧版QC）", f"{final_quality_score:.1f}/10")
+                        else:
+                            st.info("暂无审查数据")
+
+                    # ★ 新增 Tab 6：引用溯源报告
+                    with tab6:
+                        st.subheader("🔗 引用溯源报告")
+                        cit_report = final_analysis_result.get("citation_report", {})
+                        if cit_report:
+                            total = cit_report.get("total_sources", 0)
+                            verified = cit_report.get("verified_sources", 0)
+                            broken = cit_report.get("broken_links", 0)
+
+                            col_c1, col_c2, col_c3 = st.columns(3)
+                            with col_c1:
+                                st.metric("总引用数", total)
+                            with col_c2:
+                                st.metric("已验证", f"{verified}/{total}" if total > 0 else "N/A")
+                            with col_c3:
+                                st.metric("失效链接", broken)
+
+                            rel = cit_report.get("overall_reliability_score", 0)
+                            st.progress(min(rel, 1.0), text=f"总体可信度: {rel:.0%}")
+
+                            missing = cit_report.get("missing_citations", [])
+                            if missing:
+                                st.warning(f"⚠️ 发现 {len(missing)} 条缺失引用的结论")
+                                with st.expander("查看缺失引用详情"):
+                                    for m in missing:
+                                        st.caption(f"- {m[:120]}...")
+
+                            dist = cit_report.get("reliability_distribution", {})
+                            if dist:
+                                st.caption(f"可信度分布: {dist}")
+                        else:
+                            st.info("暂无引用溯源数据（升级前的旧版分析无此功能）")
 
             except Exception as e:
                 st.error(f"请求失败：{str(e)}")
@@ -496,7 +583,130 @@ elif page == "竞品管理":
                                             st.error(f"❌ 修改失败：{res.json()['detail']}")
 
 # ------------------------------
-# 页面3：历史分析
+# 页面3：我方产品
+# ------------------------------
+elif page == "我方产品":
+    st.header("🏢 我方产品信息")
+    st.caption("维护我方产品的结构化信息，对比分析时将基于真实数据评分，而非AI凭空估计")
+
+    service_online = check_health()
+    if not service_online:
+        st.error("❌ 后端服务未启动")
+        st.stop()
+
+    # 加载当前我方产品数据
+    @st.cache_data(ttl=5)
+    def load_our_product():
+        try:
+            resp = requests.get(f"{API_BASE_URL}/api/our-product", timeout=5)
+            if resp.status_code == 200:
+                return resp.json()
+        except Exception:
+            pass
+        return {}
+
+    product = load_our_product()
+
+    with st.form("our_product_form"):
+        st.subheader("基本信息")
+        col_n1, col_n2 = st.columns([1, 2])
+        with col_n1:
+            product_name = st.text_input("产品名称", value=product.get("name", ""), placeholder="输入我方产品名称")
+        with col_n2:
+            pricing_model = st.selectbox(
+                "定价模式",
+                ["免费", "开源免费", "免费增值", "订阅制", "按量付费", "企业定制", "混合模式"],
+                index=["免费", "开源免费", "免费增值", "订阅制", "按量付费", "企业定制", "混合模式"].index(
+                    product.get("pricing_model", "订阅制")
+                ) if product.get("pricing_model", "订阅制") in ["免费", "开源免费", "免费增值", "订阅制", "按量付费", "企业定制", "混合模式"] else 3,
+            )
+
+        st.divider()
+        st.subheader("核心功能")
+        st.caption("每行一个功能点")
+        core_features_text = st.text_area(
+            "核心功能清单",
+            value="\n".join(product.get("core_features", [])) if product.get("core_features") else "",
+            height=120,
+            placeholder="AI驱动的竞品监控\n实时对比分析\n标准化报告导出\n..."
+        )
+
+        st.divider()
+        st.subheader("技术能力")
+        st.caption("每行一项技术")
+        col_t1, col_t2 = st.columns(2)
+        with col_t1:
+            tech_stack_text = st.text_area(
+                "技术栈",
+                value="\n".join(product.get("tech_stack", [])) if product.get("tech_stack") else "",
+                height=100,
+                placeholder="Python\nFastAPI\nLangGraph\n..."
+            )
+        with col_t2:
+            target_market = st.text_input(
+                "目标市场", value=product.get("target_market", ""),
+                placeholder="例如：企业级SaaS、中小企业、开发者工具"
+            )
+
+        st.divider()
+        st.subheader("竞争定位")
+        col_a1, col_a2 = st.columns(2)
+        with col_a1:
+            advantages_text = st.text_area(
+                "核心竞争优势",
+                value="\n".join(product.get("competitive_advantages", [])) if product.get("competitive_advantages") else "",
+                height=120,
+                placeholder="多Agent自动分析，5分钟完成\n标准化输出，质量9分以上\n..."
+            )
+        with col_a2:
+            weaknesses_text = st.text_area(
+                "主要劣势",
+                value="\n".join(product.get("weaknesses", [])) if product.get("weaknesses") else "",
+                height=120,
+                placeholder="市场份额较小\n品牌认知度不足\n..."
+            )
+
+        st.divider()
+        col_btn1, col_btn2 = st.columns([1, 3])
+        with col_btn1:
+            saved = st.form_submit_button("💾 保存产品信息", use_container_width=True, type="primary")
+
+        if saved:
+            payload = {
+                "name": product_name,
+                "core_features": [f.strip() for f in core_features_text.split("\n") if f.strip()],
+                "pricing_model": pricing_model,
+                "tech_stack": [t.strip() for t in tech_stack_text.split("\n") if t.strip()],
+                "target_market": target_market,
+                "competitive_advantages": [a.strip() for a in advantages_text.split("\n") if a.strip()],
+                "weaknesses": [w.strip() for w in weaknesses_text.split("\n") if w.strip()],
+            }
+            try:
+                resp = requests.put(f"{API_BASE_URL}/api/our-product", json=payload, timeout=5)
+                if resp.status_code == 200:
+                    st.success("✅ 我方产品信息已保存。下次分析将基于这些真实数据进行对比评分。")
+                    st.cache_data.clear()
+                else:
+                    st.error(f"❌ 保存失败：{resp.json().get('detail', '未知错误')}")
+            except Exception as e:
+                st.error(f"❌ 请求失败：{str(e)}")
+
+    # 信息提示
+    with st.expander("💡 为什么需要填写我方产品信息？", expanded=False):
+        st.markdown("""
+        当前对比分析中的 **our_score（我方评分）** 将由 AI 基于您填写的真实产品数据生成，
+        而非凭空估计。填写越详细，对比矩阵越可信。
+
+        **必填字段建议**：
+        - **核心功能清单**：您产品的核心功能点，用于对比"Product Features"维度
+        - **定价模式**：用于对比"Pricing & Value"维度
+        - **技术栈**：用于对比"Technology & Innovation"维度
+        - **核心竞争优势**：直接影响"我方优势"分析
+        - **主要劣势**：帮助系统客观评估改进空间
+        """)
+
+# ------------------------------
+# 页面4：历史分析
 # ------------------------------
 elif page == "历史分析":
     st.header("📂 历史分析回溯")
@@ -577,7 +787,7 @@ elif page == "历史分析":
                                 st.rerun()
 
 # ------------------------------
-# 页面4：系统配置
+# 页面5：系统配置
 # ------------------------------
 elif page == "系统配置":
     st.header("⚙️ 系统配置")
