@@ -12,9 +12,8 @@ import logging
 from typing import Any
 
 from langchain_core.messages import HumanMessage, SystemMessage
-from langchain_community.chat_models import ChatTongyi
 
-from ..config import get_effective_llm_config
+from ..services.llm import LLMFactory
 
 logger = logging.getLogger(__name__)
 
@@ -40,13 +39,10 @@ class TargetedFixAgent:
     """定向修复 — 精准修改 + 保留已验证内容"""
 
     def _get_llm(self):
-        cfg = get_effective_llm_config()
-        return ChatTongyi(
-            model=cfg.model,
-            api_key=cfg.api_key,
-            temperature=0.2,
-            max_tokens=cfg.max_tokens,
-        )
+        """统一 LLM 工厂 — TargetedFix 使用低 temperature 确保精准修改"""
+        llm = LLMFactory.get_llm("targeted_fix")
+        llm.temperature = 0.2
+        return llm
 
     async def fix(
         self,

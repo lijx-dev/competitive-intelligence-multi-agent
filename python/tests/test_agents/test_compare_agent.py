@@ -37,14 +37,14 @@ def test_parse_matrix_valid_json():
 
 
 def test_parse_matrix_invalid_json():
-    """LLM 返回非法 JSON 时 _parse_matrix 返回 8 维度默认 7.0 分矩阵。"""
+    """LLM 返回非法 JSON 时 _parse_matrix 返回默认兜底矩阵。"""
     matrix = CompareAgent._parse_matrix("not json", "TestCo")
     assert isinstance(matrix, ComparisonMatrix)
     assert len(matrix.dimensions) == 8
     for d in matrix.dimensions:
-        assert d.our_score == 7.0
-        assert d.competitor_score == 7.0
-    assert "Unable to parse" in matrix.overall_assessment
+        assert d.our_score == 5.0  # 默认兜底值（异常或无法解析时）
+        assert d.competitor_score == 5.0
+    assert "解析" in matrix.overall_assessment or "parse" in matrix.overall_assessment.lower()
 
 
 @pytest.mark.asyncio

@@ -23,6 +23,8 @@ from ..db.sqlite import (
     get_db_stats,
     get_our_product,
     update_our_product,
+    create_feedback_record,
+    get_feedback_records,
 )
 # 新增：Pydantic模型导入
 from pydantic import BaseModel, Field
@@ -542,3 +544,207 @@ async def api_update_our_product(req: OurProductUpdateRequest):
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"更新失败：{str(e)}")
+
+
+# ==================================================================
+#  飞书 Bot API
+# ==================================================================
+
+class FeedbackRequest(BaseModel):
+    """飞书卡片按钮回调请求"""
+    action: str = Field(description="confirm / correct / ack")
+    report_id: str = Field(default="", description="报告ID")
+    comment: str = Field(default="", description="用户反馈备注")
+
+
+@app.post("/api/v1/feishu/test", summary="测试飞书推送")
+async def api_feishu_test():
+    """向配置的飞书 Webhook 发送一条测试卡片，验证推送链路"""
+    from ..services.feishu import FeishuBot
+    from ..config import get_effective_notification_config
+
+    cfg = get_effective_notification_config()
+    if not cfg.feishu_webhook_url:
+        raise HTTPException(status_code=400, detail="飞书 Webhook 未配置")
+
+    bot = FeishuBot(webhook_url=cfg.feishu_webhook_url, secret=cfg.feishu_webhook_secret)
+    ok = await bot.send_test_card()
+    return {"success": ok, "message": "测试卡片已发送" if ok else "发送失败，请检查 Webhook 配置"}
+
+
+@app.post("/api/v1/feishu/feedback", summary="接收飞书卡片按钮回调")
+async def api_feishu_feedback(req: FeedbackRequest):
+    """接收飞书卡片按钮回调（✅分析准确 / ❌需修正），记录反馈到数据库"""
+    try:
+        record = create_feedback_record(
+            report_id=req.report_id or "unknown",
+            action=req.action,
+            comment=req.comment,
+            operator="feishu_user",
+        )
+        logger.info("飞书反馈已记录: action=%s report=%s", req.action, req.report_id)
+        return {"status": "success", "record": record}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"记录反馈失败：{str(e)}")
+
+
+@app.get("/api/v1/feishu/feedback", summary="获取飞书反馈记录")
+async def api_get_feedback(report_id: str = ""):
+    """获取飞书反馈记录，可按 report_id 筛选"""
+    return get_feedback_records(report_id=report_id if report_id else None)
+
+
+# ==================================================================
+#  可观测性 API（M5 基础设施接线）
+# ==================================================================
+
+@app.get("/api/v1/infra/status", summary="系统整体状态")
+async def api_infra_status():
+    """返回活跃Agent、Token消耗、事件计数等整体状态"""
+    return hub.get_stats()
+
+
+@app.get("/api/v1/infra/decision-logs", summary="Agent决策日志")
+async def api_decision_logs(
+    agent: str = "", phase: str = "", has_anomaly: Optional[bool] = None,
+    start: str = "", end: str = "", limit: int = Query(default=100, le=1000),
+):
+    """多维度筛选 Agent 决策日志"""
+    from ..infrastructure.data_models import DecisionLogFilter
+    flt = DecisionLogFilter()
+    if agent:
+        flt.agent_names = [agent]
+    if phase:
+        flt.phases = [phase]
+    if has_anomaly is not None:
+        flt.has_anomaly = has_anomaly
+    logs = hub.agent_logger.query(flt)[:limit]
+    return {"total": len(logs), "logs": [l.model_dump(mode="json") for l in logs]}
+
+
+@app.get("/api/v1/infra/decision-logs/timeline", summary="决策日志时序回溯")
+async def api_decision_log_timeline():
+    return {"timeline": hub.agent_logger.timeline_replay()}
+
+
+@app.get("/api/v1/infra/token-usage", summary="Token用量统计")
+async def api_token_usage(agent: str = "", start: str = "", end: str = ""):
+    """按Agent统计Token消耗"""
+    from ..infrastructure.observability import DAG_NODES
+    statuses = {}
+    for nid, _, _, _ in DAG_NODES:
+        used = hub.token_manager._get_used(nid)
+        if used["input"] + used["output"] > 0:
+            statuses[nid] = used
+    return {"agents": statuses, "total_input": sum(s["input"] for s in statuses.values()),
+            "total_output": sum(s["output"] for s in statuses.values())}
+
+
+@app.get("/api/v1/infra/token-quota", summary="Token配额状态")
+async def api_token_quota():
+    quotas = {}
+    for q in hub.token_manager.get_all_quotas():
+        used = hub.token_manager._get_used(q.agent_name)
+        quotas[q.agent_name] = {
+            "quota_input": q.max_input_tokens, "quota_output": q.max_output_tokens,
+            "used_input": used["input"], "used_output": used["output"],
+        }
+    return {"quotas": quotas}
+
+
+@app.get("/api/v1/infra/events", summary="事件总线事件列表")
+async def api_events(
+    type: str = "", source: str = "", limit: int = Query(default=200, le=2000),
+):
+    events = hub.event_bus.get_recent(limit)
+    if type:
+        events = [e for e in events if e.event_type.value == type]
+    if source:
+        events = [e for e in events if source in e.source]
+    return {"total": len(events), "events": [e.model_dump(mode="json") for e in events[-limit:]]}
+
+
+@app.get("/api/v1/infra/events/{event_id}/trace", summary="事件溯源链路")
+async def api_event_trace(event_id: str):
+    chain = hub.event_bus.trace_chain(event_id)
+    return {"chain": chain, "depth": len(chain)}
+
+
+@app.get("/api/v1/infra/dag-snapshot", summary="当前DAG快照")
+async def api_dag_snapshot():
+    snapshot = hub.get_dag_snapshot()
+    return snapshot.model_dump(mode="json")
+
+
+@app.get("/api/v1/infra/dag-svg", summary="DAG SVG导出")
+async def api_dag_svg():
+    from fastapi.responses import HTMLResponse
+    return HTMLResponse(content=hub.get_dag_html())
+
+
+@app.get("/api/v1/infra/audit-logs", summary="审计日志")
+async def api_audit_logs(action_type: str = "", operator: str = "", limit: int = Query(default=100)):
+    from ..infrastructure.data_models import AuditFilter
+    flt = AuditFilter()
+    if action_type:
+        flt.action_types = [action_type]
+    if operator:
+        flt.operators = [operator]
+    logs = hub.audit_system.query(flt)[:limit]
+    return {"total": len(logs), "logs": [a.model_dump(mode="json") for a in logs]}
+
+
+@app.get("/api/v1/infra/anomalies", summary="异常检测报告")
+async def api_anomalies():
+    agent_anomalies = hub.agent_logger.detect_anomalies().model_dump(mode="json")
+    audit_violations = hub.audit_system.detect_anomalies()
+    token_report = hub.token_manager.daily_report(days=1).model_dump(mode="json")
+    return {
+        "agent_anomalies": agent_anomalies,
+        "audit_violations": audit_violations,
+        "token_report_preview": {"total_input": token_report["total_input_tokens"],
+                                  "estimated_cost": token_report["estimated_cost"]},
+    }
+
+
+# ==================================================================
+#  RAG 知识库 API
+# ==================================================================
+
+@app.post("/api/v1/rag/ingest", summary="重建知识库索引")
+async def api_rag_ingest():
+    """手动触发知识库索引重建（从 ecommerce_kb 目录重新加载全部 JSON）"""
+    import os as _os
+    from ..services.rag.core import rag
+
+    kb_path = _os.getenv("RAG_KB_PATH", "")
+    if not kb_path:
+        raise HTTPException(status_code=400, detail="RAG_KB_PATH 环境变量未设置，请指定知识库路径")
+
+    docs = rag.loader.ingest_directory(kb_path)
+    count = rag.ingest_documents(docs)
+    rag.retriever.save()
+    return {"status": "indexed", "documents": len(docs), "chunks": count, "stats": rag.get_stats()}
+
+
+@app.post("/api/v1/rag/query", summary="RAG 检索接口")
+async def api_rag_query(query: str = "", k: int = Query(default=5, le=20),
+                        industry: str = "", doc_type: str = ""):
+    """RAG 检索（供调试和前端展示）"""
+    if not query:
+        raise HTTPException(status_code=400, detail="query 参数不能为空")
+    from ..services.rag.core import rag
+    filters = {}
+    if industry:
+        filters["industry"] = industry
+    if doc_type:
+        filters["type"] = doc_type
+    results = rag.query(query, k=k, filters=filters if filters else None)
+    return {"query": query, "results": results, "count": len(results)}
+
+
+@app.get("/api/v1/rag/stats", summary="知识库统计")
+async def api_rag_stats():
+    """知识库统计信息"""
+    from ..services.rag.core import rag
+    return rag.get_stats()

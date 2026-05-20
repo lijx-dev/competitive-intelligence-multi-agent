@@ -81,6 +81,18 @@ def init_db():
     VALUES (1, 'My Product', '[]', '订阅制', '[]', '', '[]', '[]', datetime('now'))
     ''')
 
+    # 6. 飞书反馈记录表（人类反馈 → 自进化闭环）
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS feedback_records (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        report_id TEXT NOT NULL,
+        action TEXT NOT NULL,
+        comment TEXT DEFAULT '',
+        operator TEXT DEFAULT 'unknown',
+        created_at TEXT NOT NULL
+    )
+    ''')
+
     conn.commit()
     conn.close()
 
@@ -486,3 +498,55 @@ def update_our_product(data: Dict[str, Any]) -> Dict[str, Any]:
     conn.commit()
     conn.close()
     return get_our_product()
+
+
+# ============================================================
+# 飞书反馈记录 CRUD（M6 自进化数据源）
+# ============================================================
+
+def create_feedback_record(
+    report_id: str,
+    action: str,
+    comment: str = "",
+    operator: str = "unknown",
+) -> Dict[str, Any]:
+    """记录一条人类反馈"""
+    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+    now = datetime.utcnow().isoformat()
+    cursor = conn.cursor()
+    cursor.execute(
+        'INSERT INTO feedback_records (report_id, action, comment, operator, created_at) VALUES (?, ?, ?, ?, ?)',
+        (report_id, action, comment, operator, now),
+    )
+    conn.commit()
+    fid = cursor.lastrowid
+    conn.close()
+    return {
+        "id": fid,
+        "report_id": report_id,
+        "action": action,
+        "comment": comment,
+        "operator": operator,
+        "created_at": now,
+    }
+
+
+def get_feedback_records(report_id: Optional[str] = None) -> List[Dict[str, Any]]:
+    """获取反馈记录，可按 report_id 筛选"""
+    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+    cursor = conn.cursor()
+    if report_id:
+        cursor.execute(
+            'SELECT id, report_id, action, comment, operator, created_at FROM feedback_records WHERE report_id = ? ORDER BY created_at DESC',
+            (report_id,),
+        )
+    else:
+        cursor.execute(
+            'SELECT id, report_id, action, comment, operator, created_at FROM feedback_records ORDER BY created_at DESC',
+        )
+    rows = cursor.fetchall()
+    conn.close()
+    return [{
+        "id": r[0], "report_id": r[1], "action": r[2],
+        "comment": r[3], "operator": r[4], "created_at": r[5],
+    } for r in rows]

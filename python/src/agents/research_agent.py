@@ -7,11 +7,11 @@ import logging
 from typing import Any
 
 from langchain_core.messages import HumanMessage, SystemMessage
-from langchain_community.chat_models import ChatTongyi
 
-from ..config import get_effective_llm_config
+from ..services.llm import LLMFactory
 from ..models.schemas import ResearchInsight
 from ..tools.search_tool import news_search, web_search
+from ..services.rag.rag_agent import RAGEnhancedAgent
 
 logger = logging.getLogger(__name__)
 
@@ -34,14 +34,8 @@ Be factual and cite sources where possible.
 class ResearchAgent:
 
     def _get_llm(self):
-        """每次调用时从动态配置读取 LLM 参数，确保配置修改即时生效。"""
-        cfg = get_effective_llm_config()
-        return ChatTongyi(
-            model=cfg.model,
-            api_key=cfg.api_key,
-            temperature=cfg.temperature,
-            max_tokens=cfg.max_tokens,
-        )
+        """统一 LLM 工厂 — 支持豆包/通义千问动态切换"""
+        return LLMFactory.get_llm("research")
 
     async def analyze(
         self,
@@ -55,20 +49,35 @@ class ResearchAgent:
             for c in changes
         ) or "No specific changes detected – perform general research."
 
+        # ★ RAG 检索：注入行业知识和评分标准
+        rag_docs = []
+        try:
+            from ..services.rag.core import rag
+            rag_query = f"{competitor} {' '.join(c.get('title','') for c in changes[:3])}"
+            rag_docs = rag.multi_recall(rag_query, k_per_strategy=3)
+        except Exception as e:
+            logger.debug("RAG 检索跳过: %s", e)
+
         user_msg = (
             f"Competitor: {competitor}\n\n"
             f"Detected Changes:\n{changes_summary}\n\n"
-            # 修复：先model_dump()转成可序列化的字典
             f"Web Search Results:\n{json.dumps(search_results, ensure_ascii=False, indent=2)}\n\n"
             "Provide deep research insights as JSON."
         )
+        # 注入 RAG 上下文
+        user_msg = RAGEnhancedAgent.augment_prompt(user_msg, rag_docs, max_docs=3)
 
         response = await self._get_llm().ainvoke([
             SystemMessage(content=SYSTEM_PROMPT),
             HumanMessage(content=user_msg),
         ])
 
-        return self._parse_insights(response.content)
+        insights = self._parse_insights(response.content)
+        # 附加引用来源
+        for ins in insights:
+            if not ins.sources:
+                ins.sources = [c["source"] for c in RAGEnhancedAgent.citations_from_docs(rag_docs)[:3]]
+        return insights
 
     # ------------------------------------------------------------------
     # LangGraph node interface

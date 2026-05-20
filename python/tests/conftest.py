@@ -50,29 +50,51 @@ def mock_llm_response():
 @pytest.fixture
 def mock_chat_tongyi(monkeypatch):
     """
-    全局替换 ChatTongyi 为 AsyncMock，防止任何测试意外调用真实 LLM。
+    替换 LLM 调用为 AsyncMock，防止测试意外调用真实 API。
+    同时 Mock 旧的 ChatTongyi 路径（回退兼容）和新的 LLMFactory 路径。
     子测试可通过设置 mock_instance.ainvoke.return_value 自定义返回内容。
     """
     mock_instance = AsyncMock()
     mock_instance.ainvoke.return_value.content = "{}"
 
-    # Mock 各 Agent 模块中的 ChatTongyi（模块级别 import 的）
-    import src.agents.monitor_agent as ma
-    import src.agents.research_agent as ra
-    import src.agents.compare_agent as ca
-    import src.agents.battlecard_agent as ba
+    # Mock LLMFactory.get_llm — 所有 Agent 现在通过此路径获取 LLM
+    import src.services.llm.llm_factory as lf
+    FakeFactory = type("FakeFactory", (), {
+        "get_llm": staticmethod(lambda agent_name="default": mock_instance),
+        "get_provider_info": staticmethod(lambda: {"provider": "mock"}),
+    })
+    monkeypatch.setattr(lf, "LLMFactory", FakeFactory)
 
-    monkeypatch.setattr(ma, "ChatTongyi", lambda *a, **kw: mock_instance)
-    monkeypatch.setattr(ra, "ChatTongyi", lambda *a, **kw: mock_instance)
-    monkeypatch.setattr(ca, "ChatTongyi", lambda *a, **kw: mock_instance)
-    monkeypatch.setattr(ba, "ChatTongyi", lambda *a, **kw: mock_instance)
+    # 同时 patch services.llm 包导出（覆盖 from ..services.llm import LLMFactory 路径）
+    import src.services.llm as sl
+    monkeypatch.setattr(sl, "LLMFactory", FakeFactory)
 
-    # workflow.py 中 ChatTongyi 在 quality_check 函数内延迟导入，
-    # 需要 patch langchain_community.chat_models 中的 ChatTongyi
+    # 覆盖每个 Agent 模块内部的 LLMFactory 引用（from ..services.llm import LLMFactory）
+    for agent_mod_name in [
+        "src.agents.monitor_agent",
+        "src.agents.research_agent",
+        "src.agents.compare_agent",
+        "src.agents.battlecard_agent",
+        "src.agents.reviewer_agent",
+        "src.agents.targeted_fix_agent",
+    ]:
+        monkeypatch.setattr(f"{agent_mod_name}.LLMFactory", FakeFactory)
+
+    # Mock DoubaoLLM.generate — 防止 API 测试穿透到真实 Ark 调用
+    import src.services.llm.doubao_client as dc
+    monkeypatch.setattr(dc.DoubaoLLM, "generate",
+        AsyncMock(return_value={"content": "{}", "usage": {"input_tokens": 0, "output_tokens": 0}, "model": "mock"}))
+    monkeypatch.setattr(dc.DoubaoLLM, "generate_stream",
+        AsyncMock(return_value=None))
+
+    # 保留旧 ChatTongyi 路径的 Mock（回退兼容）
     monkeypatch.setattr(
         "langchain_community.chat_models.ChatTongyi",
         lambda *a, **kw: mock_instance,
     )
+
+    # Reviewer 和 TargetedFix 会设置 llm.temperature，需要支持属性赋值
+    mock_instance.temperature = 0.7
 
     return mock_instance
 

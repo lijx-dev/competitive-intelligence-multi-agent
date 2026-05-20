@@ -7,9 +7,8 @@ from datetime import datetime
 from typing import Any
 
 from langchain_core.messages import HumanMessage, SystemMessage
-from langchain_community.chat_models import ChatTongyi
 
-from ..config import get_effective_llm_config
+from ..services.llm import LLMFactory
 from ..models.schemas import (
     ChangeType,
     CompetitorChange,
@@ -46,14 +45,8 @@ class MonitorAgent:
     """Stateless agent callable that fits into a LangGraph node."""
 
     def _get_llm(self):
-        """每次调用时从动态配置读取 LLM 参数，确保配置修改即时生效。"""
-        cfg = get_effective_llm_config()
-        return ChatTongyi(
-            model=cfg.model,
-            api_key=cfg.api_key,
-            temperature=cfg.temperature,
-            max_tokens=cfg.max_tokens,
-        )
+        """统一 LLM 工厂 — 支持豆包/通义千问动态切换"""
+        return LLMFactory.get_llm("monitor")
 
     async def detect_changes(
         self,

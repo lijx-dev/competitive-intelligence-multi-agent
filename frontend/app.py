@@ -73,7 +73,7 @@ API_BASE_URL = "http://localhost:8000"
 with st.sidebar:
     st.title("📊 竞品情报系统")
     st.divider()
-    page = st.radio("功能导航", ["竞品分析工作台", "竞品管理", "我方产品", "历史分析", "系统配置"])
+    page = st.radio("功能导航", ["竞品分析工作台", "竞品管理", "我方产品", "历史分析", "系统配置", "可观测中心", "竞品知识库"])
     st.divider()
     st.caption("基于多Agent架构的企业级竞品情报分析平台")
 
@@ -888,6 +888,23 @@ elif page == "系统配置":
             )
 
             st.divider()
+            st.subheader("飞书通知")
+            feishu_enabled = st.checkbox("启用飞书通知", value=bool(saved_notif.get("feishu_enabled", False)))
+            col_f1, col_f2 = st.columns(2)
+            with col_f1:
+                feishu_webhook = st.text_input(
+                    "飞书 Webhook URL", type="password",
+                    value=saved_notif.get("feishu_webhook_url", notif_d.get("feishu_webhook_url", "")),
+                    placeholder="https://open.feishu.cn/open-apis/bot/v2/hook/..."
+                )
+            with col_f2:
+                feishu_secret = st.text_input(
+                    "飞书签名密钥", type="password",
+                    value=saved_notif.get("feishu_webhook_secret", notif_d.get("feishu_webhook_secret", "")),
+                    placeholder="HMAC-SHA256 签名密钥"
+                )
+
+            st.divider()
             st.subheader("邮件通知")
             email_enabled = st.checkbox("启用邮件通知", value=bool(saved_notif.get("email_enabled", False)))
             col_e1, col_e2 = st.columns(2)
@@ -906,6 +923,9 @@ elif page == "系统配置":
                     "slack_enabled": slack_enabled,
                     "dingtalk_webhook": dingtalk_webhook,
                     "dingtalk_enabled": dingtalk_enabled,
+                    "feishu_webhook_url": feishu_webhook,
+                    "feishu_webhook_secret": feishu_secret,
+                    "feishu_enabled": feishu_enabled,
                     "email_smtp_host": email_host,
                     "email_smtp_port": email_port,
                     "email_from": email_from,
@@ -925,33 +945,43 @@ elif page == "系统配置":
 
         # 测试按钮（在表单外，避免与提交冲突）
         st.subheader("🧪 测试通知")
-        col_t1, col_t2, col_t3 = st.columns(3)
+        col_t1, col_t2, col_t3, col_t4 = st.columns(4)
         with col_t1:
-            if st.button("测试 Slack 通知", use_container_width=True):
+            if st.button("测试 Slack", use_container_width=True):
                 try:
                     resp = requests.post(f"{API_BASE_URL}/api/config/test-notification", json={"channel": "slack"}, timeout=10)
                     if resp.json().get("success"):
-                        st.success("✅ Slack 测试通知已发送")
+                        st.success("✅ 已发送")
                     else:
                         st.warning(f"⚠️ {resp.json().get('message', '发送失败')}")
                 except Exception as e:
                     st.error(f"❌ {str(e)}")
         with col_t2:
-            if st.button("测试钉钉通知", use_container_width=True):
+            if st.button("测试钉钉", use_container_width=True):
                 try:
                     resp = requests.post(f"{API_BASE_URL}/api/config/test-notification", json={"channel": "dingtalk"}, timeout=10)
                     if resp.json().get("success"):
-                        st.success("✅ 钉钉测试通知已发送")
+                        st.success("✅ 已发送")
                     else:
                         st.warning(f"⚠️ {resp.json().get('message', '发送失败')}")
                 except Exception as e:
                     st.error(f"❌ {str(e)}")
         with col_t3:
-            if st.button("测试邮件通知", use_container_width=True):
+            if st.button("测试飞书", use_container_width=True):
+                try:
+                    resp = requests.post(f"{API_BASE_URL}/api/v1/feishu/test", timeout=10)
+                    if resp.json().get("success"):
+                        st.success("✅ 已发送")
+                    else:
+                        st.warning(f"⚠️ {resp.json().get('message', '发送失败')}")
+                except Exception as e:
+                    st.error(f"❌ {str(e)}")
+        with col_t4:
+            if st.button("测试邮件", use_container_width=True):
                 try:
                     resp = requests.post(f"{API_BASE_URL}/api/config/test-notification", json={"channel": "email"}, timeout=10)
                     if resp.json().get("success"):
-                        st.success("✅ 邮件测试通知已发送")
+                        st.success("✅ 已发送")
                     else:
                         st.warning(f"⚠️ {resp.json().get('message', '发送失败')}")
                 except Exception as e:
@@ -1163,3 +1193,178 @@ elif page == "系统配置":
                                         st.error("回滚失败")
         except Exception as e:
             st.error(f"获取历史失败：{str(e)}")
+
+# ------------------------------
+# 页面6：可观测中心
+# ------------------------------
+elif page == "可观测中心":
+    st.header("📡 可观测中心")
+    st.caption("实时监控Agent执行状态、Token消耗、事件流 — 自动刷新")
+
+    service_online = check_health()
+    if not service_online:
+        st.error("❌ 后端服务未启动")
+        st.stop()
+
+    # ── 自动刷新 ──
+    from streamlit_autorefresh import st_autorefresh
+    try:
+        st_autorefresh(interval=3000, key="obs_refresh")
+    except ImportError:
+        st.caption("💡 安装 streamlit-autorefresh 可启用自动刷新: pip install streamlit-autorefresh")
+
+    @st.cache_data(ttl=3)
+    def fetch_stats():
+        try:
+            resp = requests.get(f"{API_BASE_URL}/api/v1/infra/status", timeout=3)
+            return resp.json() if resp.status_code == 200 else {}
+        except Exception:
+            return {}
+
+    @st.cache_data(ttl=3)
+    def fetch_dag_html():
+        try:
+            resp = requests.get(f"{API_BASE_URL}/api/v1/infra/dag-svg", timeout=3)
+            return resp.text if resp.status_code == 200 else ""
+        except Exception:
+            return ""
+
+    @st.cache_data(ttl=5)
+    def fetch_decision_logs():
+        try:
+            resp = requests.get(f"{API_BASE_URL}/api/v1/infra/decision-logs?limit=20", timeout=3)
+            return resp.json().get("logs", []) if resp.status_code == 200 else []
+        except Exception:
+            return []
+
+    stats = fetch_stats()
+    dag = stats.get("dag", {})
+    tokens = stats.get("tokens", {})
+    agents = stats.get("agents", {})
+
+    # ── 顶部指标卡 ──
+    col1, col2, col3, col4, col5 = st.columns(5)
+    running_agents = len(dag.get("running", []))
+    with col1:
+        st.metric("活跃Agent", running_agents)
+    with col2:
+        total_tokens = tokens.get("total_input", 0) + tokens.get("total_output", 0)
+        st.metric("Token消耗", f"{total_tokens:,}")
+    with col3:
+        st.metric("事件总数", stats.get("events_count", 0))
+    with col4:
+        avg_ms = agents.get("total_duration_ms", 0) // max(agents.get("total_logs", 1), 1)
+        st.metric("平均延迟", f"{avg_ms}ms")
+    with col5:
+        progress = dag.get("progress", 0)
+        st.metric("DAG进度", f"{progress*100:.0f}%")
+
+    # ── DAG 可视化 ──
+    st.subheader("🔀 DAG 实时状态")
+    dag_html = fetch_dag_html()
+    if dag_html:
+        st.components.v1.html(dag_html, height=500)
+    else:
+        with st.container(border=True):
+            completed = dag.get("completed", [])
+            for nid in completed:
+                st.success(f"✅ {nid}")
+            for nid in dag.get("running", []):
+                st.info(f"🔄 {nid}")
+            if not completed and not dag.get("running"):
+                st.info("等待分析任务启动...")
+
+    # ── 决策日志 + Token用量 ──
+    col_left, col_right = st.columns(2)
+    with col_left:
+        st.subheader("🧠 Agent 决策日志")
+        logs = fetch_decision_logs()
+        if logs:
+            for log in logs[:10]:
+                anomaly_icon = "⚠️" if log.get("anomaly_flags") else "✅"
+                with st.expander(f"{anomaly_icon} {log.get('agent_name','?')} — {log.get('duration_ms',0)}ms — {log.get('input_tokens',0)+log.get('output_tokens',0)}tok"):
+                    st.caption(f"Status: {log.get('status','?')} | Phase: {log.get('phase','?')}")
+                    st.text(log.get("reasoning", "")[:300])
+        else:
+            st.info("暂无决策日志（执行一次分析后出现）")
+
+    with col_right:
+        st.subheader("📊 Token 用量")
+        token_agents = tokens.get("agents", {})
+        if token_agents:
+            token_data = {a: s["input"] + s["output"] for a, s in token_agents.items()}
+            st.bar_chart(token_data)
+        else:
+            st.info("暂无Token数据")
+
+# ------------------------------
+# 页面7：竞品知识库
+# ------------------------------
+elif page == "竞品知识库":
+    st.header("📚 竞品知识库")
+    st.caption("RAG 四层架构 L1+L2 MVP — 电商行业知识检索")
+
+    service_online = check_health()
+    if not service_online:
+        st.error("❌ 后端服务未启动")
+        st.stop()
+
+    @st.cache_data(ttl=10)
+    def fetch_kb_stats():
+        try:
+            resp = requests.get(f"{API_BASE_URL}/api/v1/rag/stats", timeout=5)
+            return resp.json() if resp.status_code == 200 else {}
+        except Exception:
+            return {}
+
+    stats = fetch_kb_stats()
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.metric("索引文档数", stats.get("doc_count", 0))
+    with col2:
+        st.metric("嵌入模型", stats.get("embed_model", "N/A").split("/")[-1])
+    with col3:
+        industries = stats.get("industries", [])
+        st.metric("覆盖行业", len(industries))
+    with col4:
+        st.metric("索引路径", stats.get("index_path", "N/A").split("/")[-2] + "/..." if stats.get("index_path") else "未初始化")
+
+    # 行业标签
+    if industries:
+        st.markdown("**已索引行业**: " + " · ".join([f"`{i}`" for i in industries if i]))
+
+    st.divider()
+    st.subheader("🔍 知识检索")
+
+    search_query = st.text_input("输入检索词", placeholder="例如：直播电商市场规模、抖音电商GMV、评分标准...")
+    col_s1, col_s2, col_s3 = st.columns([2, 1, 1])
+    with col_s1:
+        k = st.slider("返回结果数", 1, 20, 5)
+    with col_s2:
+        industry_filter = st.selectbox("行业筛选", ["全部"] + industries) if industries else st.selectbox("行业筛选", ["全部"])
+    with col_s3:
+        if st.button("🔍 搜索", use_container_width=True, type="primary") and search_query:
+            filters = f"&industry={industry_filter}" if industry_filter != "全部" else ""
+            try:
+                resp = requests.get(
+                    f"{API_BASE_URL}/api/v1/rag/query?query={search_query}&k={k}{filters}",
+                    timeout=10
+                )
+                if resp.status_code == 200:
+                    data = resp.json()
+                    results = data.get("results", [])
+                    st.success(f"找到 {len(results)} 条结果")
+                    for i, r in enumerate(results, 1):
+                        meta = r.get("metadata", {})
+                        with st.container(border=True):
+                            col_r1, col_r2 = st.columns([3, 1])
+                            with col_r1:
+                                st.markdown(f"**#{i}** [{meta.get('type','?')}] {r.get('content','')[:200]}...")
+                                st.caption(f"来源: {meta.get('source','?')} | 行业: {meta.get('industry','?')}")
+                            with col_r2:
+                                st.metric("置信度", f"{r.get('confidence',0)*100:.0f}%")
+                                st.caption(f"Score: {r.get('score', 0):.3f}")
+                else:
+                    st.error("检索失败")
+            except Exception as e:
+                st.error(f"请求失败: {e}")

@@ -16,6 +16,20 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  # ── API Gateway (CloudWeGo Hertz) ────────────────────────────
+  gateway:
+    build: ../gateway
+    ports:
+      - "8080:8080"
+    environment:
+      - HERTZ_PORT=8080
+      - BACKEND_URL=http://api:8000
+      - CORS_ORIGINS=*
+      - RATE_LIMIT_RPS=100
+    depends_on:
+      - api
+    restart: unless-stopped
+
   # ── Infrastructure ──────────────────────────────────────────
   zookeeper:
     image: confluentinc/cp-zookeeper:7.7.0

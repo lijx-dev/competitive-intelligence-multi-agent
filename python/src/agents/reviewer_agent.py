@@ -11,9 +11,8 @@ import logging
 from typing import Any
 
 from langchain_core.messages import HumanMessage, SystemMessage
-from langchain_community.chat_models import ChatTongyi
 
-from ..config import get_effective_llm_config
+from ..services.llm import LLMFactory
 from ..models.schemas import ReviewFeedback, ReviewIssue
 
 logger = logging.getLogger(__name__)
@@ -56,13 +55,10 @@ class ReviewerAgent:
     """4维度评分 + 定向修复指令"""
 
     def _get_llm(self):
-        cfg = get_effective_llm_config()
-        return ChatTongyi(
-            model=cfg.model,
-            api_key=cfg.api_key,
-            temperature=0.0,
-            max_tokens=cfg.max_tokens,
-        )
+        """统一 LLM 工厂 — Reviewer 使用 temperature=0 确保评分稳定"""
+        llm = LLMFactory.get_llm("reviewer")
+        llm.temperature = 0.0
+        return llm
 
     async def review(self, state: dict[str, Any]) -> ReviewFeedback:
         battlecard = state.get("battlecard", {})

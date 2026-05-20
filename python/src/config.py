@@ -22,11 +22,25 @@ logger = logging.getLogger(__name__)
 
 @dataclass(frozen=True)
 class LLMConfig:
-    provider: str = os.getenv("LLM_PROVIDER", "tongyi")
-    model: str = os.getenv("LLM_MODEL", "qwen-turbo")
-    api_key: str = os.getenv("DASHSCOPE_API_KEY", "")
+    """LLM 配置 — 兼容豆包 / 通义千问双 Provider"""
+    provider: str = os.getenv("LLM_PROVIDER", "doubao")                        # doubao / tongyi
+    model: str = os.getenv("LLM_MODEL", os.getenv("DOUBAO_MODEL_ID", "doubao-seed-1-8-251228"))
+    api_key: str = os.getenv("DASHSCOPE_API_KEY", "")                           # 通义千问（回退）
     temperature: float = float(os.getenv("LLM_TEMPERATURE", "0.7"))
     max_tokens: int = int(os.getenv("LLM_MAX_TOKENS", "4096"))
+
+    # 豆包特有字段
+    ark_api_key: str = os.getenv("ARK_API_KEY", "")                             # 火山引擎 Ark API Key
+    doubao_model_id: str = os.getenv("DOUBAO_MODEL_ID", "doubao-seed-1-8-251228")
+
+
+@dataclass(frozen=True)
+class DoubaoConfig:
+    """豆包大模型特有参数"""
+    context_editing_enabled: bool = True
+    max_context_tokens: int = int(os.getenv("DOUBAO_MAX_CONTEXT_TOKENS", "32000"))
+    truncation_strategy: str = os.getenv("DOUBAO_TRUNCATION_STRATEGY", "tail")
+    base_url: str = os.getenv("DOUBAO_BASE_URL", "https://ark.cn-beijing.volces.com/api/v3")
 
 
 @dataclass(frozen=True)
@@ -60,6 +74,9 @@ class NotificationConfig:
     slack_enabled: bool = False
     dingtalk_webhook: str = os.getenv("DINGTALK_WEBHOOK_URL", "")
     dingtalk_enabled: bool = False
+    feishu_webhook_url: str = os.getenv("FEISHU_WEBHOOK_URL", "")
+    feishu_webhook_secret: str = os.getenv("FEISHU_WEBHOOK_SECRET", "")
+    feishu_enabled: bool = False
     email_smtp_host: str = os.getenv("EMAIL_SMTP_HOST", "")
     email_smtp_port: int = int(os.getenv("EMAIL_SMTP_PORT", "587"))
     email_from: str = os.getenv("EMAIL_FROM", "")
@@ -78,6 +95,7 @@ class AlertConfig:
 @dataclass(frozen=True)
 class AppConfig:
     llm: LLMConfig = field(default_factory=LLMConfig)
+    doubao: DoubaoConfig = field(default_factory=DoubaoConfig)
     kafka: KafkaConfig = field(default_factory=KafkaConfig)
     elasticsearch: ElasticsearchConfig = field(default_factory=ElasticsearchConfig)
     redis: RedisConfig = field(default_factory=RedisConfig)
@@ -123,6 +141,8 @@ def get_effective_llm_config() -> LLMConfig:
         api_key=_defaults.llm.api_key,
         temperature=float(overrides.get("temperature", _defaults.llm.temperature)),
         max_tokens=int(overrides.get("max_tokens", _defaults.llm.max_tokens)),
+        ark_api_key=_defaults.llm.ark_api_key or _defaults.llm.api_key,
+        doubao_model_id=overrides.get("model", _defaults.llm.doubao_model_id),
     )
 
 
@@ -142,6 +162,9 @@ def get_effective_notification_config() -> NotificationConfig:
         slack_enabled=bool(overrides.get("slack_enabled", _defaults.notification.slack_enabled)),
         dingtalk_webhook=overrides.get("dingtalk_webhook", _defaults.notification.dingtalk_webhook),
         dingtalk_enabled=bool(overrides.get("dingtalk_enabled", _defaults.notification.dingtalk_enabled)),
+        feishu_webhook_url=overrides.get("feishu_webhook_url", _defaults.notification.feishu_webhook_url),
+        feishu_webhook_secret=overrides.get("feishu_webhook_secret", _defaults.notification.feishu_webhook_secret),
+        feishu_enabled=bool(overrides.get("feishu_enabled", _defaults.notification.feishu_enabled)),
         email_smtp_host=overrides.get("email_smtp_host", _defaults.notification.email_smtp_host),
         email_smtp_port=int(overrides.get("email_smtp_port", _defaults.notification.email_smtp_port)),
         email_from=overrides.get("email_from", _defaults.notification.email_from),
@@ -199,12 +222,16 @@ def get_all_defaults() -> dict:
             "model": _defaults.llm.model,
             "temperature": _defaults.llm.temperature,
             "max_tokens": _defaults.llm.max_tokens,
+            "doubao_model_id": _defaults.llm.doubao_model_id,
         },
         "notification": {
             "slack_webhook": _defaults.notification.slack_webhook,
             "slack_enabled": _defaults.notification.slack_enabled,
             "dingtalk_webhook": _defaults.notification.dingtalk_webhook,
             "dingtalk_enabled": _defaults.notification.dingtalk_enabled,
+            "feishu_webhook_url": _defaults.notification.feishu_webhook_url,
+            "feishu_webhook_secret": _defaults.notification.feishu_webhook_secret,
+            "feishu_enabled": _defaults.notification.feishu_enabled,
             "email_smtp_host": _defaults.notification.email_smtp_host,
             "email_smtp_port": _defaults.notification.email_smtp_port,
             "email_from": _defaults.notification.email_from,

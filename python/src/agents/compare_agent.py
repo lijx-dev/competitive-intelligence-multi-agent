@@ -10,9 +10,8 @@ import logging
 from typing import Any
 
 from langchain_core.messages import HumanMessage, SystemMessage
-from langchain_community.chat_models import ChatTongyi
 
-from ..config import get_effective_llm_config
+from ..services.llm import LLMFactory
 from ..models.schemas import ComparisonMatrix, DimensionScore
 
 logger = logging.getLogger(__name__)
@@ -100,14 +99,8 @@ def _format_product_info(info: dict) -> str:
 class CompareAgent:
 
     def _get_llm(self):
-        """每次调用时从动态配置读取 LLM 参数，确保配置修改即时生效。"""
-        cfg = get_effective_llm_config()
-        return ChatTongyi(
-            model=cfg.model,
-            api_key=cfg.api_key,
-            temperature=cfg.temperature,
-            max_tokens=cfg.max_tokens,
-        )
+        """统一 LLM 工厂 — 支持豆包/通义千问动态切换"""
+        return LLMFactory.get_llm("compare")
 
     async def compare(
         self,
@@ -178,6 +171,18 @@ class CompareAgent:
     # ------------------------------------------------------------------
 
     @staticmethod
+    def _default_matrix(competitor: str) -> ComparisonMatrix:
+        """LLM 返回异常时的默认兜底矩阵"""
+        return ComparisonMatrix(
+            competitor=competitor,
+            dimensions=[
+                DimensionScore(dimension=d, our_score=5.0, competitor_score=5.0, notes="LLM 响应异常，使用默认评分")
+                for d in DIMENSIONS
+            ],
+            overall_assessment="无法解析 LLM 返回的对比矩阵，已使用默认值。",
+        )
+
+    @staticmethod
     def _parse_matrix(llm_output: str, competitor: str) -> ComparisonMatrix:
         try:
             text = llm_output.strip()
@@ -185,29 +190,30 @@ class CompareAgent:
                 text = text.split("\n", 1)[1].rsplit("```", 1)[0]
             data = json.loads(text)
         except (json.JSONDecodeError, IndexError):
-            logger.warning("Could not parse comparison matrix")
+            logger.warning("Could not parse comparison matrix (invalid JSON)")
+            return CompareAgent._default_matrix(competitor)
+
+        # 容错：LLM 返回数组而非对象时回退到默认矩阵
+        if not isinstance(data, dict):
+            logger.warning("Comparison matrix: expected dict, got %s", type(data).__name__)
+            return CompareAgent._default_matrix(competitor)
+
+        try:
+            dims = []
+            for d in data.get("dimensions", []):
+                dims.append(
+                    DimensionScore(
+                        dimension=d.get("dimension", "Unknown"),
+                        our_score=float(d.get("our_score", 5.0)),
+                        competitor_score=float(d.get("competitor_score", 5.0)),
+                        notes=d.get("notes", ""),
+                    )
+                )
             return ComparisonMatrix(
                 competitor=competitor,
-                dimensions=[
-                    DimensionScore(dimension=d, our_score=7.0, competitor_score=7.0)
-                    for d in DIMENSIONS
-                ],
-                overall_assessment="Unable to parse detailed comparison.",
+                dimensions=dims,
+                overall_assessment=data.get("overall_assessment", ""),
             )
-
-        dims = []
-        for d in data.get("dimensions", []):
-            dims.append(
-                DimensionScore(
-                    dimension=d.get("dimension", "Unknown"),
-                    our_score=float(d.get("our_score", 5.0)),
-                    competitor_score=float(d.get("competitor_score", 5.0)),
-                    notes=d.get("notes", ""),
-                )
-            )
-
-        return ComparisonMatrix(
-            competitor=competitor,
-            dimensions=dims,
-            overall_assessment=data.get("overall_assessment", ""),
-        )
+        except (AttributeError, TypeError, ValueError) as e:
+            logger.warning("Failed to parse comparison matrix dimensions: %s", e)
+            return CompareAgent._default_matrix(competitor)
