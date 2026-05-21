@@ -107,7 +107,7 @@ class DoubaoLLM:
         request_params.update(kwargs)
 
         try:
-            response = await self._client.chat.completions.create(**request_params)
+            response = self._client.chat.completions.create(**request_params)
             choice = response.choices[0]
 
             # 处理 tool_calls 场景
@@ -146,14 +146,14 @@ class DoubaoLLM:
         messages.append({"role": "user", "content": prompt})
 
         try:
-            stream = await self._client.chat.completions.create(
+            stream = self._client.chat.completions.create(
                 model=self.model_id,
                 messages=messages,
                 temperature=temperature if temperature is not None else self.temperature,
                 max_tokens=max_tokens or self.max_tokens,
                 stream=True,
             )
-            async for chunk in stream:
+            for chunk in stream:
                 if chunk.choices and chunk.choices[0].delta.content:
                     yield chunk.choices[0].delta.content
         except Exception as e:

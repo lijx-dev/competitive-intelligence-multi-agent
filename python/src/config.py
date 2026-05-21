@@ -12,7 +12,7 @@ import logging
 from dataclasses import dataclass, field
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '..', '..', '.env'))
 
 logger = logging.getLogger(__name__)
 
@@ -105,6 +105,13 @@ class AppConfig:
     monitor_interval_minutes: int = int(os.getenv("MONITOR_INTERVAL_MINUTES", "60"))
     quality_threshold: float = float(os.getenv("QUALITY_THRESHOLD", "7.0"))
     max_reflexion_retries: int = int(os.getenv("MAX_REFLEXION_RETRIES", "3"))
+
+    # 自进化参数
+    evolution_enabled: bool = os.getenv("EVOLUTION_ENABLED", "true").lower() == "true"
+    evolution_auto_commit_threshold: float = float(os.getenv("EVOLUTION_AUTO_COMMIT_THRESHOLD", "0.8"))
+    evolution_confidence_boost: float = float(os.getenv("EVOLUTION_CONFIDENCE_BOOST", "0.10"))
+    evolution_confidence_penalty: float = float(os.getenv("EVOLUTION_CONFIDENCE_PENALTY", "0.20"))
+    evolution_kb_path: str = os.getenv("EVOLUTION_KB_PATH", "")
 
 
 # 模块级默认配置单例（不可变默认值）

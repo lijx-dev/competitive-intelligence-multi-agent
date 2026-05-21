@@ -1,0 +1,204 @@
+"""
+MockDataGenerator — 生成完整 Mock Pipeline 执行结果 + SSE 事件序列。
+
+核心方法：
+  generate_full_pipeline(competitor, urls) → dict
+    → 返回完整的 PipelineState 字典，模拟整个 DAG 执行结果
+  generate_sse_events() → list[dict]
+    → 返回模拟的 SSE 事件序列（含合理延时间隔）
+"""
+
+from __future__ import annotations
+
+import asyncio
+import json
+import logging
+import random
+from datetime import datetime, timezone
+from typing import Any
+
+from .data import get_scenario, list_scenarios
+from .mode import is_mock_mode, get_mock_scenario
+
+logger = logging.getLogger(__name__)
+
+
+def _now() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+class MockDataGenerator:
+    """Mock 数据生成器 — 根据场景 ID 生成完整的竞品分析结果。
+
+    用途：
+      - Mock 模式下的 Pipeline 执行
+      - Demo 现场的即时演示
+      - 前端开发调试
+    """
+
+    def __init__(self, scenario_id: str = ""):
+        self.scenario_id = scenario_id or get_mock_scenario()
+        self.data = get_scenario(self.scenario_id)
+        self._sse_events: list[dict] = []
+
+    @property
+    def competitor(self) -> str:
+        return self.data.get("competitor", "Unknown")
+
+    @property
+    def scenario_name(self) -> str:
+        return self.data.get("name", "Unknown")
+
+    # ── 完整 Pipeline 结果生成 ─────────────────────────────
+
+    def generate_full_pipeline(
+        self, competitor: str = "", urls: list | None = None
+    ) -> dict:
+        """生成完整的 PipelineState 字典，模拟整个 DAG 执行结果。
+
+        所有数据通过 Pydantic Schema 校验（与真实 Pipeline 输出一致）。
+        """
+        data = self.data
+        comp = competitor or self.competitor
+
+        state: dict[str, Any] = {
+            "competitor": comp,
+            "monitor_urls": urls or [f"https://{comp.lower().replace(' ', '')}.com"],
+            "previous_hashes": {},
+            "our_product_info": _mock_our_product(),
+            "changes_detected": data["monitor"].get("changes_detected", []),
+            "research_results": data["research"].get("research_results", []),
+            "comparison_matrix": data["comparison"].get("comparison_matrix"),
+            "battlecard": data["battlecard"].get("battlecard"),
+            "alerts_sent": _mock_alerts(data["monitor"].get("changes_detected", [])),
+            "fact_check_result": data["factcheck"].get("fact_check_result", {}),
+            "review_feedback": data["review"].get("review_feedback", {}),
+            "citation_report": data["citation"].get("citation_report", {}),
+            "targeted_fix_count": 0,
+            "quality_score": data["review"].get("review_feedback", {}).get("overall_score", 8.5),
+            "reflexion_count": 1,
+            "error": None,
+            "feishu_push_status": "mock_skipped",
+            "_source": "mock",
+            "_mock_scenario": self.scenario_id,
+            "_generated_at": _now(),
+        }
+        return state
+
+    # ── SSE 事件序列生成 ──────────────────────────────────
+
+    def generate_sse_events(
+        self, competitor: str = "", simulate_delay: bool = True
+    ) -> list[dict]:
+        """生成模拟的 SSE 事件序列。
+
+        事件顺序遵循真实 DAG 执行顺序：
+          monitor → alert → research → fact_check → compare
+          → battlecard → reviewer → citation → feishu_push → complete
+
+        Args:
+            competitor: 竞品名称（为空则使用场景默认值）
+            simulate_delay: 是否附加模拟延迟（单位秒）以展示逐步执行效果
+        """
+        comp = competitor or self.competitor
+        data = self.data
+        events: list[dict] = []
+
+        # 节点执行顺序 + 每个节点的输出
+        node_sequence = [
+            ("monitor", data["monitor"], 300),
+            ("alert", {"alerts_sent": _mock_alerts(data["monitor"].get("changes_detected", []))}, 100),
+            ("research", data["research"], 1200),
+            ("fact_check", data["factcheck"], 80),
+            ("compare", data["comparison"], 1000),
+            ("battlecard", data["battlecard"], 800),
+            ("reviewer", data["review"], 500),
+            ("citation", data["citation"], 300),
+            ("feishu_push", {"feishu_push_status": "mock_skipped"}, 50),
+        ]
+
+        for node_name, output, delay_ms in node_sequence:
+            if simulate_delay:
+                delay_s = delay_ms / 1000.0 + random.uniform(0, 0.2)
+            else:
+                delay_s = 0.05
+
+            events.append({
+                "event": node_name,
+                "data": json.dumps(output, default=str, ensure_ascii=False),
+                "_delay_s": delay_s,
+                "_source": "mock",
+            })
+
+        # 最终完成事件
+        quality = data["review"].get("review_feedback", {}).get("overall_score", 8.5)
+        events.append({
+            "event": "complete",
+            "data": json.dumps({
+                "status": "completed",
+                "competitor": comp,
+                "quality_score": quality,
+                "total_duration_ms": sum(d for _, _, d in node_sequence),
+                "source": "mock",
+                "scenario": self.scenario_name,
+            }, ensure_ascii=False),
+            "_delay_s": 0.05,
+            "_source": "mock",
+        })
+
+        self._sse_events = events
+        return events
+
+    # ── 异步 SSE 生成器（供 FastAPI EventSourceResponse 使用）───
+
+    async def astream_sse_events(
+        self, competitor: str = "", simulate_delay: bool = True
+    ):
+        """异步生成 SSE 事件序列（含可配置延迟）。
+
+        用法：
+            gen = MockDataGenerator()
+            async for event in gen.astream_sse_events("快手电商"):
+                yield event
+        """
+        events = self.generate_sse_events(competitor, simulate_delay)
+        for evt in events:
+            delay = evt.pop("_delay_s", 0.05)
+            await asyncio.sleep(delay)
+            yield {"event": evt["event"], "data": evt["data"]}
+
+
+# ── 辅助函数 ──────────────────────────────────────────
+
+def _mock_alerts(changes: list) -> list:
+    """从变更列表生成告警（仅 HIGH severity）"""
+    return [
+        {
+            "severity": c.get("severity", "LOW"),
+            "title": c.get("title", ""),
+            "sent_to": ["feishu", "slack"] if c.get("severity") == "HIGH" else [],
+            "sent_at": _now(),
+        }
+        for c in changes
+        if c.get("severity") == "HIGH"
+    ]
+
+
+def _mock_our_product() -> dict:
+    """返回我方产品 Mock 数据"""
+    return {
+        "name": "抖音电商",
+        "core_features": [
+            "AI驱动的内容推荐引擎", "千川智能广告投放系统",
+            "品牌自播工具套装", "达人撮合平台（星图）",
+            "即时零售（小时达）", "抖店商家后台"
+        ],
+        "pricing_model": "佣金制 3-8%+广告费",
+        "tech_stack": ["豆包大模型", "火山引擎推荐系统", "即梦AI", "云原生基础设施"],
+        "target_market": "全球品牌商家+内容创作者",
+        "competitive_advantages": [
+            "7亿DAU流量规模", "AI推荐算法全球领先",
+            "内容-电商-本地生活超级APP生态", "豆包+即梦AI创作工具矩阵"
+        ],
+        "weaknesses": ["流量成本高", "下沉市场渗透不足", "跨境电商起步晚"],
+    }

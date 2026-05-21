@@ -93,6 +93,53 @@ def init_db():
     )
     ''')
 
+    # 7. 进化分析快照表
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS analysis_snapshots (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        competitor TEXT NOT NULL,
+        dimension TEXT NOT NULL DEFAULT '',
+        agent_name TEXT NOT NULL,
+        finding TEXT NOT NULL DEFAULT '',
+        confidence REAL NOT NULL DEFAULT 0.5,
+        template_id TEXT NOT NULL DEFAULT '',
+        quality_score REAL DEFAULT 0.0,
+        human_verified INTEGER DEFAULT 0,
+        feedback_count INTEGER DEFAULT 0,
+        created_at TEXT NOT NULL
+    )
+    ''')
+
+    # 8. 进化反馈记录表
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS evolution_feedback (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        snapshot_id INTEGER,
+        action TEXT NOT NULL,
+        comment TEXT DEFAULT '',
+        old_confidence REAL DEFAULT 0.0,
+        new_confidence REAL DEFAULT 0.0,
+        operator TEXT DEFAULT 'unknown',
+        created_at TEXT NOT NULL,
+        FOREIGN KEY (snapshot_id) REFERENCES analysis_snapshots(id)
+    )
+    ''')
+
+    # 9. 模板表现跟踪表
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS template_performance (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        agent_name TEXT NOT NULL,
+        template_id TEXT NOT NULL,
+        template_desc TEXT DEFAULT '',
+        performance_score REAL DEFAULT 0.5,
+        usage_count INTEGER DEFAULT 0,
+        success_count INTEGER DEFAULT 0,
+        updated_at TEXT NOT NULL,
+        UNIQUE(agent_name, template_id)
+    )
+    ''')
+
     conn.commit()
     conn.close()
 
@@ -169,6 +216,14 @@ def update_competitor(competitor_id: int, name: str, urls: List[str]) -> Dict[st
     cursor = conn.cursor()
     now = datetime.utcnow().isoformat()
 
+    # 先获取 created_at 以便完整返回
+    cursor.execute('SELECT created_at FROM competitors WHERE id = ?', (competitor_id,))
+    row = cursor.fetchone()
+    if not row:
+        conn.close()
+        raise ValueError(f"ID为{competitor_id}的竞品不存在")
+
+    created_at = row[0]
     cursor.execute(
         'UPDATE competitors SET name = ?, urls = ?, updated_at = ? WHERE id = ?',
         (name, json.dumps(urls, ensure_ascii=False), now, competitor_id)
@@ -182,6 +237,7 @@ def update_competitor(competitor_id: int, name: str, urls: List[str]) -> Dict[st
         "id": competitor_id,
         "name": name,
         "urls": urls,
+        "created_at": created_at,
         "updated_at": now
     }
 
@@ -550,3 +606,176 @@ def get_feedback_records(report_id: Optional[str] = None) -> List[Dict[str, Any]
         "id": r[0], "report_id": r[1], "action": r[2],
         "comment": r[3], "operator": r[4], "created_at": r[5],
     } for r in rows]
+
+
+# ============================================================
+# 进化引擎 CRUD（analysis_snapshots / evolution_feedback / template_performance）
+# ============================================================
+
+def create_analysis_snapshot(
+    competitor: str,
+    agent_name: str,
+    finding: str = "",
+    confidence: float = 0.5,
+    dimension: str = "",
+    template_id: str = "",
+    quality_score: float = 0.0,
+) -> Dict[str, Any]:
+    """保存一次分析快照"""
+    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+    cursor = conn.cursor()
+    now = datetime.utcnow().isoformat()
+    cursor.execute(
+        """INSERT INTO analysis_snapshots
+           (competitor, dimension, agent_name, finding, confidence, template_id, quality_score, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+        (competitor, dimension, agent_name, finding[:2000], confidence, template_id, quality_score, now),
+    )
+    conn.commit()
+    sid = cursor.lastrowid
+    conn.close()
+    return {
+        "id": sid, "competitor": competitor, "dimension": dimension,
+        "agent_name": agent_name, "confidence": confidence,
+        "template_id": template_id, "created_at": now,
+    }
+
+
+def get_snapshot_by_key(
+    competitor: str = "", dimension: str = "", agent_name: str = "",
+    limit: int = 50,
+) -> List[Dict[str, Any]]:
+    """按 竞品+维度+Agent 查询分析快照历史"""
+    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+    cursor = conn.cursor()
+    clauses = []
+    params: List[Any] = []
+    if competitor:
+        clauses.append("competitor = ?"); params.append(competitor)
+    if dimension:
+        clauses.append("dimension = ?"); params.append(dimension)
+    if agent_name:
+        clauses.append("agent_name = ?"); params.append(agent_name)
+    where = " AND ".join(clauses) if clauses else "1=1"
+    cursor.execute(
+        f"SELECT id, competitor, dimension, agent_name, finding, confidence, template_id, quality_score, human_verified, feedback_count, created_at FROM analysis_snapshots WHERE {where} ORDER BY created_at DESC LIMIT ?",
+        params + [limit],
+    )
+    rows = cursor.fetchall()
+    conn.close()
+    return [
+        {
+            "id": r[0], "competitor": r[1], "dimension": r[2],
+            "agent_name": r[3], "finding": r[4], "confidence": r[5],
+            "template_id": r[6], "quality_score": r[7],
+            "human_verified": bool(r[8]), "feedback_count": r[9],
+            "created_at": r[10],
+        }
+        for r in rows
+    ]
+
+
+def create_evolution_feedback(
+    snapshot_id: int,
+    action: str,
+    old_confidence: float = 0.0,
+    new_confidence: float = 0.0,
+    comment: str = "",
+    operator: str = "unknown",
+) -> Dict[str, Any]:
+    """记录一条进化反馈"""
+    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+    cursor = conn.cursor()
+    now = datetime.utcnow().isoformat()
+    cursor.execute(
+        """INSERT INTO evolution_feedback (snapshot_id, action, comment, old_confidence, new_confidence, operator, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?)""",
+        (snapshot_id, action, comment, old_confidence, new_confidence, operator, now),
+    )
+    conn.commit()
+    fid = cursor.lastrowid
+    # 同步更新快照的验证状态
+    cursor.execute(
+        "UPDATE analysis_snapshots SET human_verified = 1, feedback_count = feedback_count + 1 WHERE id = ?",
+        (snapshot_id,),
+    )
+    conn.commit()
+    conn.close()
+    return {"id": fid, "snapshot_id": snapshot_id, "action": action, "created_at": now}
+
+
+def get_feedback_stats() -> Dict[str, Any]:
+    """反馈统计：总数、确认/纠正比例、按日期准确率趋势"""
+    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+    cursor = conn.cursor()
+    cursor.execute("SELECT COUNT(*) FROM evolution_feedback")
+    total = cursor.fetchone()[0]
+    cursor.execute("SELECT action, COUNT(*) FROM evolution_feedback GROUP BY action")
+    by_action = {r[0]: r[1] for r in cursor.fetchall()}
+    confirm = by_action.get("confirm", 0)
+
+    cursor.execute(
+        "SELECT DATE(created_at) as d, COUNT(*) as cnt, "
+        "SUM(CASE WHEN action='confirm' THEN 1 ELSE 0 END) as confirms "
+        "FROM evolution_feedback GROUP BY d ORDER BY d DESC LIMIT 30"
+    )
+    trend = [
+        {"date": r[0], "total": r[1], "confirms": r[2],
+         "accuracy": round(r[2] / max(r[1], 1), 3)}
+        for r in cursor.fetchall()
+    ]
+    conn.close()
+    return {
+        "total_feedback": total,
+        "confirm_count": confirm,
+        "correct_count": by_action.get("correct", 0),
+        "accuracy": round(confirm / max(total, 1), 3),
+        "trend": trend,
+    }
+
+
+def update_template_score(
+    agent_name: str,
+    template_id: str,
+    performance_score: float,
+    usage_count: int = 0,
+    success_count: int = 0,
+    template_desc: str = "",
+) -> Dict[str, Any]:
+    """更新或插入模板评分"""
+    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+    cursor = conn.cursor()
+    now = datetime.utcnow().isoformat()
+    cursor.execute(
+        """INSERT INTO template_performance (agent_name, template_id, template_desc, performance_score, usage_count, success_count, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?)
+           ON CONFLICT(agent_name, template_id) DO UPDATE SET
+             performance_score = excluded.performance_score,
+             usage_count = template_performance.usage_count + excluded.usage_count,
+             success_count = template_performance.success_count + excluded.success_count,
+             updated_at = excluded.updated_at""",
+        (agent_name, template_id, template_desc, performance_score, usage_count, success_count, now),
+    )
+    conn.commit()
+    conn.close()
+    return {"agent_name": agent_name, "template_id": template_id, "score": performance_score}
+
+
+def get_template_ranking() -> List[Dict[str, Any]]:
+    """获取全部模板评分排行"""
+    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT agent_name, template_id, template_desc, performance_score, usage_count, success_count, updated_at "
+        "FROM template_performance ORDER BY performance_score DESC"
+    )
+    rows = cursor.fetchall()
+    conn.close()
+    return [
+        {
+            "agent_name": r[0], "template_id": r[1], "template_desc": r[2],
+            "performance_score": r[3], "usage_count": r[4],
+            "success_count": r[5], "updated_at": r[6],
+        }
+        for r in rows
+    ]

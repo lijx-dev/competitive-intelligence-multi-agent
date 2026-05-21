@@ -25,6 +25,11 @@ from ..db.sqlite import (
     update_our_product,
     create_feedback_record,
     get_feedback_records,
+    create_analysis_snapshot,
+    get_snapshot_by_key,
+    get_feedback_stats,
+    update_template_score,
+    get_template_ranking,
 )
 # 新增：Pydantic模型导入
 from pydantic import BaseModel, Field
@@ -133,6 +138,13 @@ async def lifespan(app: FastAPI):
     # 新增：服务启动时自动初始化数据库
     init_db()
     logger.info("Database initialized successfully")
+    # 进化引擎：初始化模板评分种子数据
+    try:
+        from ..services.evolution.knowledge_base import seed_default_templates
+        seed_default_templates()
+        logger.info("Evolution templates seeded")
+    except Exception as e:
+        logger.warning("Evolution template seeding skipped: %s", e)
     yield
     logger.info("CI Multi-Agent Pipeline shutting down")
 
@@ -167,6 +179,58 @@ async def health():
 @app.post("/analyze", response_model=AnalyzeResponse)
 async def analyze(req: AnalyzeRequest):
     """Run the full pipeline synchronously and return the final state."""
+    # ── Mock 模式：跳过 LLM，使用预生成数据 ──
+    from ..mock import is_mock_mode
+    if is_mock_mode():
+        from ..graph.workflow import run_mock_pipeline
+        logger.info("Mock 模式：分析 %s", req.competitor)
+        initial_state: PipelineState = {
+            "competitor": req.competitor,
+            "monitor_urls": req.urls or [],
+            "our_product_info": get_our_product(),
+        }
+        try:
+            final = await run_mock_pipeline(initial_state)
+        except Exception as exc:
+            logger.exception("Mock pipeline failed")
+            raise HTTPException(status_code=500, detail=str(exc))
+
+        response_data = AnalyzeResponse(
+            competitor=final.get("competitor", req.competitor),
+            changes_detected=final.get("changes_detected", []),
+            research_results=final.get("research_results", []),
+            comparison_matrix=final.get("comparison_matrix"),
+            battlecard=final.get("battlecard"),
+            alerts_sent=final.get("alerts_sent", []),
+            quality_score=final.get("quality_score", 0.0),
+        )
+
+        # 仍然存入数据库
+        try:
+            competitor_id = None
+            for comp in get_all_competitors():
+                if comp["name"] == req.competitor:
+                    competitor_id = comp["id"]
+                    break
+            create_analysis_record(
+                competitor_id=competitor_id,
+                competitor_name=req.competitor,
+                request_urls=req.urls or [],
+                analysis_result=response_data.model_dump(),
+                quality_score=response_data.quality_score
+            )
+        except Exception as e:
+            logger.warning("Mock分析记录存库失败：%s", e)
+
+        try:
+            from ..graph.workflow import save_evolution_snapshots
+            asyncio.create_task(save_evolution_snapshots(final))
+        except Exception:
+            pass
+
+        return response_data
+
+    # ── 生产模式：执行真实 Pipeline ──
     initial_state: PipelineState = {
         "competitor": req.competitor,
         "monitor_urls": req.urls or [],
@@ -236,6 +300,13 @@ async def analyze(req: AnalyzeRequest):
         logger.info(f"分析记录已存入数据库，竞品：{req.competitor}")
     except Exception as e:
         logger.warning(f"分析记录存库失败：{str(e)}，不影响核心分析流程")
+    # -------------------------- 进化引擎：保存分析快照 --------------------------
+    try:
+        from ..graph.workflow import save_evolution_snapshots
+        import asyncio as _asyncio
+        _asyncio.create_task(save_evolution_snapshots(final_safe))
+    except Exception as e:
+        logger.warning(f"进化快照保存失败：{str(e)}，不影响核心分析流程")
     # -----------------------------------------------------------------------------------
 
     return response_data
@@ -245,6 +316,47 @@ async def analyze(req: AnalyzeRequest):
 async def analyze_stream(req: AnalyzeRequest):
     """Stream pipeline events via Server-Sent Events (SSE) so the frontend
     can show real-time progress."""
+
+    # ── Mock 模式：返回预生成 SSE 事件序列 ──
+    from ..mock import is_mock_mode
+    if is_mock_mode():
+        from ..mock import MockDataGenerator, get_mock_scenario
+
+        async def mock_event_generator() -> AsyncGenerator[dict, None]:
+            gen = MockDataGenerator(get_mock_scenario())
+            logger.info("Mock SSE 模式：场景=%s，竞品=%s", gen.scenario_name, req.competitor)
+            async for evt in gen.astream_sse_events(req.competitor, simulate_delay=True):
+                yield evt
+
+            # SSE 完成后存库
+            try:
+                result = gen.generate_full_pipeline(req.competitor, req.urls)
+                final_analysis_result = {
+                    "changes_detected": result.get("changes_detected", []),
+                    "research_results": result.get("research_results", []),
+                    "comparison_matrix": result.get("comparison_matrix"),
+                    "battlecard": result.get("battlecard"),
+                    "alerts_sent": result.get("alerts_sent", []),
+                }
+                final_quality_score = result.get("quality_score", 0.0)
+                competitor_id = None
+                for comp in get_all_competitors():
+                    if comp["name"] == req.competitor:
+                        competitor_id = comp["id"]
+                        break
+                create_analysis_record(
+                    competitor_id=competitor_id,
+                    competitor_name=req.competitor,
+                    request_urls=req.urls or [],
+                    analysis_result=final_analysis_result,
+                    quality_score=final_quality_score
+                )
+            except Exception as e:
+                logger.warning("Mock SSE 存库失败：%s", e)
+
+        return EventSourceResponse(mock_event_generator())
+
+    # ── 生产模式：真实 SSE Pipeline ──
 
     async def event_generator() -> AsyncGenerator[dict, None]:
         initial_state: PipelineState = {
@@ -310,6 +422,22 @@ async def analyze_stream(req: AnalyzeRequest):
                 logger.info(f"流式分析记录已存入数据库，竞品：{req.competitor}")
             except Exception as e:
                 logger.warning(f"流式分析记录存库失败：{str(e)}，不影响核心分析流程")
+            # -------------------------- 进化引擎：保存分析快照 --------------------------
+            try:
+                from ..graph.workflow import save_evolution_snapshots
+                # 合并 final node_results 为完整 state
+                merged_state = {
+                    "competitor": req.competitor,
+                    "monitor_urls": req.urls or [],
+                    "quality_score": final_quality_score,
+                }
+                for n, v in node_results.items():
+                    if isinstance(v, dict):
+                        for k2, v2 in v.items():
+                            merged_state[k2] = v2
+                asyncio.create_task(save_evolution_snapshots(merged_state))
+            except Exception as e:
+                logger.warning(f"进化快照保存失败：{str(e)}，不影响核心分析流程")
             # -----------------------------------------------------------------------------------
 
         except Exception as exc:
@@ -601,7 +729,10 @@ async def api_get_feedback(report_id: str = ""):
 @app.get("/api/v1/infra/status", summary="系统整体状态")
 async def api_infra_status():
     """返回活跃Agent、Token消耗、事件计数等整体状态"""
-    return hub.get_stats()
+    try:
+        return hub.get_stats()
+    except Exception as e:
+        return {"error": str(e), "dag": {"total_nodes": 10, "running": [], "completed": [], "failed": [], "progress": 0}}
 
 
 @app.get("/api/v1/infra/decision-logs", summary="Agent决策日志")
@@ -748,3 +879,145 @@ async def api_rag_stats():
     """知识库统计信息"""
     from ..services.rag.core import rag
     return rag.get_stats()
+
+
+# ==================================================================
+#  系统自进化 API（M6 反馈驱动策略调整）
+# ==================================================================
+
+class EvolutionFeedbackRequest(BaseModel):
+    """人类反馈请求 — 飞书回调 / 前端手动提交"""
+    snapshot_id: int = Field(description="分析快照ID")
+    is_correct: bool = Field(description="true=确认正确, false=标记错误")
+    comment: str = Field(default="", description="反馈备注")
+    operator: str = Field(default="feishu_user", description="操作者标识")
+
+
+class EvolutionSnapshotQuery(BaseModel):
+    """快照查询参数"""
+    competitor: str = ""
+    dimension: str = ""
+    agent_name: str = ""
+    limit: int = Field(default=50, le=200)
+
+
+@app.post("/api/v1/evolution/feedback", summary="提交人类反馈")
+async def api_evolution_feedback(req: EvolutionFeedbackRequest):
+    """提交人类反馈（由飞书卡片回调或前端手动触发）。
+
+    确认正确 → 提升置信度+0.1，标记错误 → 降低置信度-0.2。
+    同时更新关联 Prompt 模板的 performance_score。
+    """
+    try:
+        from ..services.evolution import engine as evo_engine
+        result = evo_engine.process_human_feedback(
+            snapshot_id=req.snapshot_id,
+            is_correct=req.is_correct,
+            comment=req.comment,
+            operator=req.operator,
+        )
+        if result.get("status") == "error":
+            raise HTTPException(status_code=404, detail=result.get("error", "快照不存在"))
+        # 同时写入审计日志
+        try:
+            from ..infrastructure.observability import hub
+            hub.audit(
+                action_type="evolution_feedback",
+                operator=req.operator,
+                target=f"snapshot:{req.snapshot_id}",
+            )
+        except Exception:
+            pass
+        return {"status": "success", "data": result}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"反馈处理失败：{str(e)}")
+
+
+@app.get("/api/v1/evolution/stats", summary="进化统计信息")
+async def api_evolution_stats():
+    """返回进化统计：总分析数 / 人类验证数 / 知识覆盖率 / 准确率趋势"""
+    try:
+        from ..services.evolution import engine as evo_engine
+        stats = evo_engine.get_evolution_stats()
+        # 补充模板排行
+        stats["template_ranking"] = get_template_ranking()
+        return {"status": "success", "data": stats}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取进化统计失败：{str(e)}")
+
+
+@app.get("/api/v1/evolution/snapshots", summary="分析快照历史")
+async def api_evolution_snapshots(
+    competitor: str = "",
+    dimension: str = "",
+    agent_name: str = "",
+    limit: int = Query(default=50, le=200),
+):
+    """查询分析快照历史，支持按竞品/维度/Agent筛选"""
+    try:
+        snapshots = get_snapshot_by_key(
+            competitor=competitor if competitor else "",
+            dimension=dimension if dimension else "",
+            agent_name=agent_name if agent_name else "",
+            limit=limit,
+        )
+        return {"status": "success", "total": len(snapshots), "snapshots": snapshots}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取快照失败：{str(e)}")
+
+
+@app.get("/api/v1/evolution/templates", summary="模板性能排行")
+async def api_evolution_templates():
+    """返回全部 Agent 模板的评分排行"""
+    try:
+        ranking = get_template_ranking()
+        return {"status": "success", "templates": ranking}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取模板排行失败：{str(e)}")
+
+
+# ==================================================================
+#  Mock 模式 API（Demo 零失败保障）
+# ==================================================================
+
+class MockToggleRequest(BaseModel):
+    """Mock 模式切换请求"""
+    enabled: bool = Field(description="true=启用Mock模式, false=关闭")
+    scenario: str = Field(default="scenario1", description="Demo场景ID")
+
+
+@app.get("/api/v1/mock/status", summary="Mock模式状态")
+async def api_mock_status():
+    """返回当前 Mock 模式状态和可用场景列表"""
+    from ..mock import is_mock_mode, get_mock_scenario, list_scenarios
+    return {
+        "mock_mode": is_mock_mode(),
+        "current_scenario": get_mock_scenario(),
+        "available_scenarios": list_scenarios(),
+        "env_var": "MOCK_MODE",
+    }
+
+
+@app.post("/api/v1/mock/toggle", summary="切换Mock模式")
+async def api_mock_toggle(req: MockToggleRequest):
+    """运行时切换 Mock 模式（无需重启服务）。
+
+    - enabled=true: 开启 Mock 模式，所有分析使用预生成数据
+    - enabled=false: 关闭 Mock 模式，恢复真实 LLM 调用
+    """
+    from ..mock import set_mock_mode, clear_mock_cache
+    import os as _os
+
+    clear_mock_cache()
+    set_mock_mode(req.enabled)
+    if req.scenario and req.scenario != "scenario1":
+        _os.environ["MOCK_SCENARIO"] = req.scenario
+
+    return {
+        "status": "success",
+        "mock_mode": req.enabled,
+        "scenario": req.scenario,
+        "message": f"Mock 模式已{'启用（所有分析将使用预生成数据，3秒内完成）' if req.enabled else '关闭（恢复真实LLM调用）'}",
+    }

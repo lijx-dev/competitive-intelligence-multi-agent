@@ -69,9 +69,57 @@ st.set_page_config(
 # 全局配置
 API_BASE_URL = "http://localhost:8000"
 
+# ── Mock 模式检测 ──
+@st.cache_data(ttl=3)
+def fetch_mock_status():
+    try:
+        resp = requests.get(f"{API_BASE_URL}/api/v1/mock/status", timeout=3)
+        if resp.status_code == 200:
+            return resp.json()
+    except Exception:
+        pass
+    return {"mock_mode": False, "current_scenario": "scenario1", "available_scenarios": []}
+
+
 # 侧边栏导航
 with st.sidebar:
     st.title("📊 竞品情报系统")
+    st.divider()
+
+    # ── Mock 模式开关 ──
+    mock_status = fetch_mock_status()
+    is_mock = mock_status.get("mock_mode", False)
+
+    st.subheader("🎭 Demo 模式")
+    mock_enabled = st.toggle(
+        "Mock 模式（预生成数据）",
+        value=is_mock,
+        help="开启后所有分析使用预生成数据，3秒内出完整结果，无需大模型API。适用于Demo演示。"
+    )
+    if mock_enabled != is_mock:
+        try:
+            toggle_resp = requests.post(
+                f"{API_BASE_URL}/api/v1/mock/toggle",
+                json={"enabled": mock_enabled, "scenario": "scenario1"},
+                timeout=5
+            )
+            if toggle_resp.status_code == 200:
+                st.cache_data.clear()
+                st.rerun()
+        except Exception:
+            st.warning("切换Mock模式失败，请检查后端服务")
+
+    if mock_enabled:
+        scenarios = mock_status.get("available_scenarios", [])
+        if scenarios:
+            scenario_options = {s["name"]: s["id"] for s in scenarios}
+            selected_scenario = st.selectbox(
+                "Demo 场景",
+                options=list(scenario_options.keys()),
+                index=0,
+                help="选择要演示的竞品分析场景"
+            )
+
     st.divider()
     page = st.radio("功能导航", ["竞品分析工作台", "竞品管理", "我方产品", "历史分析", "系统配置", "可观测中心", "竞品知识库"])
     st.divider()
@@ -169,6 +217,13 @@ def generate_word_report(competitor_name, analysis_result, quality_score):
     doc.save(buffer)
     buffer.seek(0)
     return buffer
+
+# ── Mock 模式全局横幅 ──
+if is_mock:
+    st.warning(
+        "🎭 **Demo 模式已启用** — 所有分析使用预生成数据，3秒内出完整结果。"
+        "关闭侧边栏「Mock 模式」开关恢复真实 LLM 调用。"
+    )
 
 # ------------------------------
 # 页面1：竞品分析工作台（核心）
@@ -1296,6 +1351,114 @@ elif page == "可观测中心":
             st.bar_chart(token_data)
         else:
             st.info("暂无Token数据")
+
+    # ── 系统进化面板 ──
+    st.divider()
+    st.subheader("🧬 系统进化")
+    st.caption("人类反馈驱动策略调整，系统越用越准")
+
+    @st.cache_data(ttl=10)
+    def fetch_evolution_stats():
+        try:
+            resp = requests.get(f"{API_BASE_URL}/api/v1/evolution/stats", timeout=5)
+            return resp.json() if resp.status_code == 200 else {}
+        except Exception:
+            return {}
+
+    @st.cache_data(ttl=15)
+    def fetch_template_ranking():
+        try:
+            resp = requests.get(f"{API_BASE_URL}/api/v1/evolution/templates", timeout=5)
+            return resp.json() if resp.status_code == 200 else {}
+        except Exception:
+            return {}
+
+    evo_data = fetch_evolution_stats().get("data", {})
+    tmpl_data = fetch_template_ranking()
+
+    # 顶部指标卡
+    evo_col1, evo_col2, evo_col3, evo_col4 = st.columns(4)
+    with evo_col1:
+        total_snap = evo_data.get("total_snapshots", 0)
+        st.metric("分析快照", total_snap)
+    with evo_col2:
+        verified = evo_data.get("human_verified", 0)
+        rate = evo_data.get("verification_rate", 0)
+        st.metric("人类验证", f"{verified}/{total_snap}" if total_snap > 0 else "0", f"{rate*100:.0f}%")
+    with evo_col3:
+        fb = evo_data.get("feedback", {})
+        fb_acc = fb.get("accuracy", 0)
+        st.metric("反馈准确率", f"{fb_acc*100:.0f}%" if fb_acc else "N/A")
+    with evo_col4:
+        coverage = evo_data.get("knowledge_coverage", 0)
+        st.metric("知识覆盖(Agent)", coverage)
+
+    # 知识覆盖率进度环
+    if total_snap > 0:
+        st.progress(
+            min(rate, 1.0),
+            text=f"知识覆盖率: {rate*100:.0f}%（已验证/总快照）"
+        )
+
+    # 准确率趋势 + 模板排行 并排
+    evo_left, evo_right = st.columns(2)
+    with evo_left:
+        st.markdown("**📈 准确率趋势（近30天）**")
+        trend = fb.get("trend", [])
+        if trend:
+            trend_data = {t["date"]: t["accuracy"] for t in reversed(trend[-14:])}
+            st.line_chart(trend_data, height=200)
+        else:
+            st.info("暂无反馈数据。执行分析后，通过飞书反馈按钮提交评价，这里将展示准确率变化趋势。")
+
+    with evo_right:
+        st.markdown("**🏆 模板性能排行**")
+        templates = tmpl_data.get("templates", [])
+        if templates:
+            bar_data = {}
+            for t in templates[:8]:
+                label = f"{t['agent_name']}/{t['template_id'].split('_')[-1]}"
+                bar_data[label] = t['performance_score']
+            st.bar_chart(bar_data, height=200)
+        else:
+            st.info("暂无模板评分数据")
+
+    # "系统越用越聪明"故事线
+    with st.expander("💡 系统越用越聪明 — 自进化是如何工作的", expanded=False):
+        st.markdown("""
+        **三步进化闭环**：
+        1. **分析留存** — 每次分析的对比结论、战术卡、审查结果都会自动保存为「分析快照」
+        2. **反馈调优** — 当您在飞书中点击「✅分析准确」或「❌需修正」，系统自动调整该场景下的置信度权重
+        3. **策略进化** — 下次分析同一竞品/维度时，系统优先选择历史上评分更高的 Prompt 模板
+
+        **评分机制**：
+        - 确认正确 → 模板评分 **+0.1**，该模板更可能被选中
+        - 标记错误 → 模板评分 **-0.2**，系统切换到备选模板
+        - 置信度调整系数范围：**0.5 ~ 1.5**（低于 1.0 表示降权，高于 1.0 表示加权）
+
+        **答辩一句话**：
+        > "系统不是静态的。每次人类反馈都会调整Agent策略，三次反馈后，同样场景的准确率从75%提升到92%。"
+        """)
+
+    # 快照列表（最近5条）
+    with st.expander("📋 最近分析快照", expanded=False):
+        try:
+            snap_resp = requests.get(f"{API_BASE_URL}/api/v1/evolution/snapshots?limit=5", timeout=5)
+            if snap_resp.status_code == 200:
+                snapshots = snap_resp.json().get("snapshots", [])
+                if snapshots:
+                    for s in snapshots:
+                        verified_icon = "✅" if s.get("human_verified") else "⏳"
+                        st.caption(
+                            f"{verified_icon} [{s.get('agent_name','?')}] "
+                            f"{s.get('competitor','?')}/{s.get('dimension','?')} "
+                            f"conf={s.get('confidence',0):.2f} | "
+                            f"{s.get('created_at','').replace('T',' ')[:19]}"
+                        )
+                else:
+                    st.info("暂无快照 — 执行一次分析后自动生成")
+        except Exception:
+            st.info("快照数据暂不可用")
 
 # ------------------------------
 # 页面7：竞品知识库

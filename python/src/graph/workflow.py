@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import logging
+from datetime import datetime, timezone
 from typing import Annotated, Any, TypedDict
 
 from langgraph.graph import END, StateGraph
@@ -299,3 +300,220 @@ def build_pipeline() -> StateGraph:
 
 
 pipeline = build_pipeline()
+
+
+# ---------------------------------------------------------------------------
+# Mock mode pipeline — bypass all LLM calls
+# ---------------------------------------------------------------------------
+
+async def run_mock_pipeline(state: dict[str, Any]) -> dict[str, Any]:
+    """Mock 模式下执行 DAG 模拟，绕过所有 LLM 调用和网络请求。
+
+    仍然触发 EventBus 事件和可观测性埋点（模拟 Agent 执行过程），
+    总耗时控制在 3-5 秒，展示 DAG 逐步执行效果。
+    """
+    import asyncio as _asyncio
+    from ..mock import MockDataGenerator, is_mock_mode, get_mock_scenario
+
+    if not is_mock_mode():
+        raise RuntimeError("Mock pipeline called but MOCK_MODE is not enabled")
+
+    gen = MockDataGenerator(get_mock_scenario())
+    competitor = state.get("competitor", gen.competitor)
+    logger.info("Mock 模式启动：场景=%s，竞品=%s", gen.scenario_name, competitor)
+
+    # 模拟 DAG 节点逐步执行（触发 EventBus + 决策日志）
+    node_sequence = [
+        ("monitor",       "爬取网页+LLM变更分析（Mock）"),
+        ("alert",         "HIGH级别变更告警（Mock）"),
+        ("research",      "5维度深度搜索+RAG知识注入（Mock）"),
+        ("fact_check",    "纯规则交叉验证（Mock）"),
+        ("compare",       "8维度对比评分矩阵（Mock）"),
+        ("battlecard",    "销售战术卡生成（Mock）"),
+        ("reviewer",      "4维度质量审查（Mock）"),
+        ("citation",      "引用溯源验证（Mock）"),
+        ("feishu_push",   "飞书卡片推送（Mock跳过）"),
+    ]
+
+    for node_name, description in node_sequence:
+        # 模拟 Agent 执行开始
+        try:
+            await hub.emit_agent_started(node_name, task=competitor)
+        except Exception:
+            pass
+
+        # 模拟执行延迟（200-600ms，总计约3-5秒）
+        delay = 0.2 + (hash(node_name + competitor) % 40) / 100.0
+        await _asyncio.sleep(delay)
+
+        # 模拟执行完成
+        mock_output = {
+            "_mock_node": node_name,
+            "_mock_description": description,
+            "_mock_timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+        fake_in, fake_out = _mock_token_counts(node_name)
+        try:
+            await hub.emit_agent_completed(
+                node_name, mock_output,
+                duration_ms=int(delay * 1000),
+                input_tokens=fake_in, output_tokens=fake_out,
+            )
+        except Exception:
+            pass
+        logger.debug("Mock DAG: %s completed (%dms, %d tok)", node_name, int(delay*1000), fake_in+fake_out)
+
+    # 返回完整 Mock 结果
+    result = gen.generate_full_pipeline(competitor, state.get("monitor_urls"))
+    result["_mock"] = True
+    result["_mock_scenario"] = gen.scenario_name
+    logger.info("Mock pipeline completed: quality=%.1f", result.get("quality_score", 0))
+    return result
+
+
+def _mock_token_counts(node_name: str) -> tuple[int, int]:
+    """每个 Agent 的 Mock Token 消耗量（合理范围）"""
+    counts = {
+        "monitor": (420, 180), "alert": (100, 50), "research": (1100, 650),
+        "fact_check": (0, 0), "compare": (1500, 900), "battlecard": (800, 550),
+        "reviewer": (600, 280), "citation": (300, 200), "feishu_push": (50, 30),
+    }
+    return counts.get(node_name, (200, 100))
+
+
+# ---------------------------------------------------------------------------
+# Evolution helper — extract snapshots from pipeline state
+# ---------------------------------------------------------------------------
+
+def extract_evolution_snapshots(state: dict[str, Any]) -> list[dict]:
+    """从 PipelineState 中提取进化快照数据，供 EvolutionEngine 消费。
+
+    每次 pipeline 执行完成后调用，将各 Agent 的分析结果存入进化知识库。
+    """
+    competitor = state.get("competitor", "unknown")
+    quality_score = state.get("quality_score", 0.0)
+    snapshots: list[dict] = []
+
+    # Monitor → 变更检测结果
+    for change in state.get("changes_detected", []):
+        snapshots.append({
+            "competitor": competitor,
+            "dimension": "monitor_change",
+            "finding": json.dumps(change, ensure_ascii=False) if isinstance(change, dict) else str(change),
+            "confidence": 0.7,
+            "agent_name": "monitor",
+            "quality_score": quality_score,
+        })
+
+    # Research → 研究洞察
+    for insight in state.get("research_results", []):
+        topic = insight.get("topic", "") if isinstance(insight, dict) else ""
+        summary = insight.get("summary", "") if isinstance(insight, dict) else str(insight)
+        conf = insight.get("confidence", 0.5) if isinstance(insight, dict) else 0.5
+        snapshots.append({
+            "competitor": competitor,
+            "dimension": topic[:100] if topic else "research",
+            "finding": summary[:2000] if summary else str(insight)[:2000],
+            "confidence": float(conf) if conf else 0.5,
+            "agent_name": "research",
+            "quality_score": quality_score,
+        })
+
+    # FactCheck → 交叉验证结果
+    fc = state.get("fact_check_result", {})
+    if fc and isinstance(fc, dict):
+        snapshots.append({
+            "competitor": competitor,
+            "dimension": "fact_check",
+            "finding": json.dumps({k: str(v)[:200] for k, v in fc.items()}, ensure_ascii=False),
+            "confidence": fc.get("overall_confidence", 0.6) if isinstance(fc, dict) else 0.6,
+            "agent_name": "fact_check",
+            "quality_score": quality_score,
+        })
+
+    # Compare → 对比矩阵
+    comp = state.get("comparison_matrix", {})
+    if comp and isinstance(comp, dict):
+        for dim in comp.get("dimensions", []):
+            dim_name = dim.get("dimension", "") if isinstance(dim, dict) else ""
+            notes = dim.get("notes", "") if isinstance(dim, dict) else ""
+            snapshots.append({
+                "competitor": competitor,
+                "dimension": f"compare_{dim_name}" if dim_name else "compare",
+                "finding": notes[:2000] if notes else str(dim)[:2000],
+                "confidence": 0.7,
+                "agent_name": "compare",
+                "quality_score": quality_score,
+            })
+
+    # Battlecard → 战术卡
+    bc = state.get("battlecard", {})
+    if bc and isinstance(bc, dict):
+        key_diff = bc.get("key_differentiators", [])
+        snapshots.append({
+            "competitor": competitor,
+            "dimension": "battlecard",
+            "finding": json.dumps(key_diff[:5], ensure_ascii=False) if key_diff else str(bc)[:2000],
+            "confidence": 0.65,
+            "agent_name": "battlecard",
+            "quality_score": quality_score,
+        })
+
+    # Reviewer → 审查反馈
+    rf = state.get("review_feedback", {})
+    if rf and isinstance(rf, dict):
+        snapshots.append({
+            "competitor": competitor,
+            "dimension": "review",
+            "finding": json.dumps({
+                "overall_score": rf.get("overall_score", 0),
+                "approved": rf.get("approved", False),
+            }, ensure_ascii=False),
+            "confidence": 0.8,
+            "agent_name": "reviewer",
+            "quality_score": quality_score,
+        })
+
+    # Citation → 引用报告
+    cr = state.get("citation_report", {})
+    if cr and isinstance(cr, dict):
+        snapshots.append({
+            "competitor": competitor,
+            "dimension": "citation",
+            "finding": json.dumps({
+                "total_sources": cr.get("total_sources", 0),
+                "reliability": cr.get("overall_reliability_score", 0),
+            }, ensure_ascii=False),
+            "confidence": cr.get("overall_reliability_score", 0.7) if isinstance(cr, dict) else 0.7,
+            "agent_name": "citation",
+            "quality_score": quality_score,
+        })
+
+    return snapshots
+
+
+async def save_evolution_snapshots(state: dict[str, Any]) -> list[dict]:
+    """将 pipeline 执行结果保存到进化引擎。失败不影响主流程。"""
+    try:
+        from ..services.evolution import engine as evo_engine
+    except ImportError:
+        return []
+
+    snapshots = extract_evolution_snapshots(state)
+    if not snapshots:
+        return []
+
+    results = []
+    for snap in snapshots:
+        # 为每个快照选择推荐模板
+        chosen = evo_engine.suggest_prompt_template(
+            snap["agent_name"], snap["competitor"], snap["dimension"]
+        )
+        template_id = chosen["template_id"] if chosen else ""
+        snap["template_id"] = template_id
+
+        r = evo_engine.add_analysis_result(**snap)
+        results.append(r)
+
+    logger.info("Evolution: saved %d snapshots for competitor=%s", len(results), state.get("competitor", ""))
+    return results
