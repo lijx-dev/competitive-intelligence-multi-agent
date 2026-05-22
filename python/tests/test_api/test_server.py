@@ -173,9 +173,8 @@ def test_cors_headers_present(api_client):
 # ==================== 遗留接口 ====================
 
 def test_legacy_competitors_endpoint(api_client):
-    """GET /competitors（非 /all）返回硬编码 demo 数据。"""
+    """GET /competitors 遗留端点 — 重定向到 /competitors/all，返回标准竞品列表。"""
     resp = api_client.get("/competitors")
     assert resp.status_code == 200
     data = resp.json()
-    assert "competitors" in data
-    assert isinstance(data["competitors"], list)
+    assert isinstance(data, list)  # 与 /competitors/all 一致

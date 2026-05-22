@@ -7,6 +7,7 @@ RAGEnhancedAgent — RAG 增强的 Agent 基类。
 
 from __future__ import annotations
 
+import json
 from typing import Any
 
 
@@ -63,3 +64,59 @@ class RAGEnhancedAgent:
                 "type": meta.get("type", ""),
             })
         return citations
+
+    @staticmethod
+    def normalize_terms(text: str, glossary_docs: list[dict] | None = None) -> str:
+        """术语标准化：将文本中的非标准术语替换为知识库定义的规范术语。
+
+        从 RAG 检索术语表（doc_type="glossary"），对输入文本做术语替换。
+        不修改已符合规范的术语。
+
+        Args:
+            text: 需要标准化的原始文本
+            glossary_docs: 术语表检索结果（为空则自动从 RAG 检索）
+
+        Returns:
+            标准化后的文本
+        """
+        if not text:
+            return text
+
+        if glossary_docs is None:
+            try:
+                from .core import rag
+                glossary_docs = rag.retriever.search(
+                    "电商术语 标准定义", k=20, filters={"doc_type": "glossary"}
+                )
+            except Exception:
+                glossary_docs = []
+
+        if not glossary_docs:
+            return text
+
+        result = text
+        for doc in glossary_docs:
+            meta = doc.get("metadata", {})
+            try:
+                term_data = json.loads(doc.get("content", "{}"))
+            except (json.JSONDecodeError, TypeError):
+                continue
+
+            term_cn = term_data.get("term_cn") or term_data.get("term") or term_data.get("chinese") or ""
+            term_en = term_data.get("term_en") or term_data.get("english") or term_data.get("abbreviation") or ""
+            if not term_cn:
+                continue
+
+            # 替换常见非标准表述（仅当不冲突时）
+            aliases = term_data.get("aliases", [])
+            if isinstance(aliases, list):
+                for alias in aliases:
+                    if alias and alias != term_cn and alias in result:
+                        result = result.replace(alias, term_cn)
+            # 英文缩写加注中文术语
+            if term_en and term_en in result and term_cn not in result:
+                result = result.replace(
+                    term_en, f"{term_cn}（{term_en}）"
+                )
+
+        return result

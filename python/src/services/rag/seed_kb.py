@@ -10,6 +10,7 @@ RAG 知识库初始化脚本。
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 import sys
@@ -80,6 +81,40 @@ def main():
     logger.info("=" * 60)
     logger.info("RAG 初始化完成！")
     logger.info("=" * 60)
+
+
+def _flatten_json_to_docs(data: dict, doc_type: str = "general", source: str = "", layer: str = "") -> list[dict]:
+    """将嵌套 JSON 模板展平为文档列表，每个顶层 section 为一个独立文档。
+
+    L3/L4 模板文件（SWOT、波特五力、评分锚定等）通常是一个大 JSON，
+    此函数将其拆分为更细粒度的文档便于检索。
+    """
+    docs = []
+    if isinstance(data, dict):
+        for key, value in data.items():
+            content = json.dumps(value, ensure_ascii=False) if isinstance(value, (dict, list)) else str(value)
+            docs.append({
+                "content": content[:2000],
+                "metadata": {
+                    "doc_type": doc_type,
+                    "source": source,
+                    "section": key,
+                    **({"layer": layer} if layer else {}),
+                }
+            })
+    elif isinstance(data, list):
+        for i, item in enumerate(data):
+            content = json.dumps(item, ensure_ascii=False) if isinstance(item, (dict, list)) else str(item)
+            docs.append({
+                "content": content[:2000],
+                "metadata": {
+                    "doc_type": doc_type,
+                    "source": source,
+                    "section": f"item_{i}",
+                    **({"layer": layer} if layer else {}),
+                }
+            })
+    return docs
 
 
 if __name__ == "__main__":

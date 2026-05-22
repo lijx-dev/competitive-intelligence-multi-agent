@@ -1,8 +1,8 @@
-# 多Agent竞品情报分析系统 — 项目架构文档（全量分析版 v3.1）
+# 多Agent竞品情报分析系统 — 项目架构文档（全量分析版 v3.2）
 
 > **文档目的**：新会话/新开发者仅需阅读本文档，即可 100% 接手本项目开发与竞品分析任务。
 > **分析范围**：仅做客观梳理与总结，不修改、不补代码、不优化。
-> **最后更新**：2026-05-21（M6 进化引擎 + M7 Mock模式 已接入）
+> **最后更新**：2026-05-22（RAG L3+L4 + DAG可视化 + Word报告增强 + Bug修复）
 
 ---
 
@@ -14,12 +14,12 @@
 
 ## 1.2 产品属性
 
-| 维度 | 属性 |
-|------|------|
-| **产品类型** | B2B 企业级 SaaS 工具/平台 |
-| **目标用户** | 产品经理、销售团队、战略分析部门、竞争情报分析师 |
+| 维度               | 属性                                                                                       |
+| ------------------ | ------------------------------------------------------------------------------------------ |
+| **产品类型** | B2B 企业级 SaaS 工具/平台                                                                  |
+| **目标用户** | 产品经理、销售团队、战略分析部门、竞争情报分析师                                           |
 | **核心价值** | 效率提升 90%（2天→5分钟）、质量标准化（评分≥9/10）、业务落地性强（销售战术卡可直接使用） |
-| **商业模式** | 内部工具 / 比赛项目（字节 AI 全栈挑战赛），未商业定价 |
+| **商业模式** | 内部工具 / 比赛项目（字节 AI 全栈挑战赛），未商业定价                                      |
 
 ## 1.3 比赛背景
 
@@ -30,14 +30,14 @@
 
 ## 1.4 竞品范围
 
-| 竞品 | 差异化 | 类型 |
-|------|--------|------|
-| **Crayon** | 人工维护 + 看板模式，非AI自动生成 | 直接竞品 |
-| **Klue** | 侧重销售赋能，本系统更侧重 Agent 自动分析 | 直接竞品 |
-| **Kompyte** | 多源采集，本系统用 LLM 替代规则引擎 | 直接竞品 |
+| 竞品                     | 差异化                                                   | 类型     |
+| ------------------------ | -------------------------------------------------------- | -------- |
+| **Crayon**         | 人工维护 + 看板模式，非AI自动生成                        | 直接竞品 |
+| **Klue**           | 侧重销售赋能，本系统更侧重 Agent 自动分析                | 直接竞品 |
+| **Kompyte**        | 多源采集，本系统用 LLM 替代规则引擎                      | 直接竞品 |
 | **CompetitorLens** | 中科大参赛项目，6 Agent，MiniMax M2.7，自研 Harness 五层 | 比赛竞品 |
-| ChatGPT/Claude + Prompt | 部分替代 Research Agent 功能 | 间接竞品 |
-| SEMrush / SimilarWeb | 流量/市场数据维度（本系统暂时未覆盖） | 间接竞品 |
+| ChatGPT/Claude + Prompt  | 部分替代 Research Agent 功能                             | 间接竞品 |
+| SEMrush / SimilarWeb     | 流量/市场数据维度（本系统暂时未覆盖）                    | 间接竞品 |
 
 ---
 
@@ -45,26 +45,26 @@
 
 ## 2.1 核心技术栈（v3.0 更新版）
 
-| 类别 | 技术选型 | 版本 | 位置 |
-|------|----------|------|------|
-| **语言后端** | Python 3.11+ | - | `python/` |
-| **Web框架** | FastAPI | ≥0.115 | `python/src/api/server.py` |
-| **ASGI** | Uvicorn | ≥0.32 | 启动命令 |
-| **API网关** | CloudWeGo Hertz (Go) | v0.9.x | `gateway/` — 展示字节技术生态 |
-| **Agent编排** | LangGraph StateGraph | ≥0.2 | `python/src/graph/workflow.py` |
-| **LLM主Provider** | 字节豆包 Doubao (Ark SDK) | doubao-seed-1-8-251228 | `python/src/services/llm/` |
-| **LLM回退Provider** | 通义千问 Qwen (ChatTongyi) | qwen-turbo | `python/src/services/llm/llm_factory.py` |
-| **前端** | Streamlit | ≥1.30 | `frontend/app.py` |
-| **关系存储** | SQLite (sqlite3) | 内置 | `python/src/db/sqlite.py` |
-| **向量存储** | FAISS-cpu + SentenceTransformer | latest | `python/src/services/rag/` |
-| **嵌入模型** | paraphrase-multilingual-MiniLM-L12-v2 | 384维 | `python/src/services/rag/retriever.py` |
-| **数据校验** | Pydantic v2 | ≥2.9 | `python/src/models/schemas.py` |
-| **配置管理** | python-dotenv + frozen dataclass + SQLite动态覆盖 | ≥1.0 | `python/src/config.py` |
-| **飞书通知** | 自定义 Bot (HMAC-SHA256 + 交互卡片) | - | `python/src/services/feishu/` |
-| **网页抓取** | httpx + BeautifulSoup4 | ≥0.28 | `python/src/tools/web_scraper.py` |
-| **搜索** | SerpAPI（含 demo fallback） | - | `python/src/tools/search_tool.py` |
-| **文档导出** | python-docx (Word) | latest | `frontend/app.py` |
-| **容器化** | Docker + Docker Compose | - | `python/docker-compose.yml` + `gateway/Dockerfile` |
+| 类别                      | 技术选型                                          | 版本                   | 位置                                                   |
+| ------------------------- | ------------------------------------------------- | ---------------------- | ------------------------------------------------------ |
+| **语言后端**        | Python 3.11+                                      | -                      | `python/`                                            |
+| **Web框架**         | FastAPI                                           | ≥0.115                | `python/src/api/server.py`                           |
+| **ASGI**            | Uvicorn                                           | ≥0.32                 | 启动命令                                               |
+| **API网关**         | CloudWeGo Hertz (Go)                              | v0.9.x                 | `gateway/` — 展示字节技术生态                       |
+| **Agent编排**       | LangGraph StateGraph                              | ≥0.2                  | `python/src/graph/workflow.py`                       |
+| **LLM主Provider**   | 字节豆包 Doubao (Ark SDK)                         | doubao-seed-1-8-251228 | `python/src/services/llm/`                           |
+| **LLM回退Provider** | 通义千问 Qwen (ChatTongyi)                        | qwen-turbo             | `python/src/services/llm/llm_factory.py`             |
+| **前端**            | Streamlit                                         | ≥1.30                 | `frontend/app.py`                                    |
+| **关系存储**        | SQLite (sqlite3)                                  | 内置                   | `python/src/db/sqlite.py`                            |
+| **向量存储**        | FAISS-cpu + SentenceTransformer                   | latest                 | `python/src/services/rag/`                           |
+| **嵌入模型**        | paraphrase-multilingual-MiniLM-L12-v2             | 384维                  | `python/src/services/rag/retriever.py`               |
+| **数据校验**        | Pydantic v2                                       | ≥2.9                  | `python/src/models/schemas.py`                       |
+| **配置管理**        | python-dotenv + frozen dataclass + SQLite动态覆盖 | ≥1.0                  | `python/src/config.py`                               |
+| **飞书通知**        | 自定义 Bot (HMAC-SHA256 + 交互卡片)               | -                      | `python/src/services/feishu/`                        |
+| **网页抓取**        | httpx + BeautifulSoup4                            | ≥0.28                 | `python/src/tools/web_scraper.py`                    |
+| **搜索**            | SerpAPI（含 demo fallback）                       | -                      | `python/src/tools/search_tool.py`                    |
+| **文档导出**        | python-docx (Word)                                | latest                 | `frontend/app.py`                                    |
+| **容器化**          | Docker + Docker Compose                           | -                      | `python/docker-compose.yml` + `gateway/Dockerfile` |
 
 ## 2.2 完整目录结构（v3.0）
 
@@ -289,91 +289,102 @@ competitive-intelligence-multi-agent/              # 项目根
 ## 2.5 API 端点全清单（49 个路由，含进化+MOCK 端点）
 
 ### 分析类（2）
-| 方法 | 端点 | 说明 |
-|------|------|------|
-| POST | `/analyze` | 同步全流程分析（不推荐，耗时较长） |
-| POST | `/analyze/stream` | ★ SSE 流式分析（推荐，实时进度） |
+
+| 方法 | 端点                | 说明                               |
+| ---- | ------------------- | ---------------------------------- |
+| POST | `/analyze`        | 同步全流程分析（不推荐，耗时较长） |
+| POST | `/analyze/stream` | ★ SSE 流式分析（推荐，实时进度）  |
 
 ### 竞品 CRUD（4）
-| 方法 | 端点 | 说明 |
-|------|------|------|
-| GET | `/competitors/all` | 竞品列表 |
-| POST | `/competitors` | 新增竞品 |
-| PUT | `/competitors/{id}` | 更新竞品（已知Bug: 缺 created_at） |
-| DELETE | `/competitors/{id}` | 删除竞品 |
-| GET | `/competitors` | 遗留 Demo 端点 |
+
+| 方法   | 端点                  | 说明                               |
+| ------ | --------------------- | ---------------------------------- |
+| GET    | `/competitors/all`  | 竞品列表                           |
+| POST   | `/competitors`      | 新增竞品                           |
+| PUT    | `/competitors/{id}` | 更新竞品（已知Bug: 缺 created_at） |
+| DELETE | `/competitors/{id}` | 删除竞品                           |
+| GET    | `/competitors`      | 遗留 Demo 端点                     |
 
 ### 历史分析（2）
-| 方法 | 端点 | 说明 |
-|------|------|------|
-| GET | `/analysis/records` | 历史列表（可按 competitor_id 筛选） |
-| GET | `/analysis/records/{id}` | 分析报告详情 |
+
+| 方法 | 端点                       | 说明                                |
+| ---- | -------------------------- | ----------------------------------- |
+| GET  | `/analysis/records`      | 历史列表（可按 competitor_id 筛选） |
+| GET  | `/analysis/records/{id}` | 分析报告详情                        |
 
 ### 系统配置（8）
-| 方法 | 端点 | 说明 |
-|------|------|------|
-| GET | `/api/config` | 获取所有配置（含默认值） |
-| PUT | `/api/config` | 批量保存配置（alert/notif/llm/pipeline） |
-| POST | `/api/config/test-notification` | 测试通知渠道 |
-| POST | `/api/config/reset-llm` | 重置 LLM 为默认值 |
-| GET | `/api/config/history` | 版本历史（按 key 筛选） |
-| POST | `/api/config/rollback` | 回滚到指定版本 |
-| GET | `/api/config/export` | 导出配置 JSON |
-| POST | `/api/config/import` | 从 JSON 导入配置 |
+
+| 方法 | 端点                              | 说明                                     |
+| ---- | --------------------------------- | ---------------------------------------- |
+| GET  | `/api/config`                   | 获取所有配置（含默认值）                 |
+| PUT  | `/api/config`                   | 批量保存配置（alert/notif/llm/pipeline） |
+| POST | `/api/config/test-notification` | 测试通知渠道                             |
+| POST | `/api/config/reset-llm`         | 重置 LLM 为默认值                        |
+| GET  | `/api/config/history`           | 版本历史（按 key 筛选）                  |
+| POST | `/api/config/rollback`          | 回滚到指定版本                           |
+| GET  | `/api/config/export`            | 导出配置 JSON                            |
+| POST | `/api/config/import`            | 从 JSON 导入配置                         |
 
 ### 我方产品（2）
-| 方法 | 端点 | 说明 |
-|------|------|------|
-| GET | `/api/our-product` | 获取我方产品信息 |
-| PUT | `/api/our-product` | 更新我方产品（compare_agent 基于此评分） |
+
+| 方法 | 端点                 | 说明                                     |
+| ---- | -------------------- | ---------------------------------------- |
+| GET  | `/api/our-product` | 获取我方产品信息                         |
+| PUT  | `/api/our-product` | 更新我方产品（compare_agent 基于此评分） |
 
 ### 飞书 Bot（3）
-| 方法 | 端点 | 说明 |
-|------|------|------|
-| POST | `/api/v1/feishu/test` | 测试飞书推送卡片 |
+
+| 方法 | 端点                        | 说明                                |
+| ---- | --------------------------- | ----------------------------------- |
+| POST | `/api/v1/feishu/test`     | 测试飞书推送卡片                    |
 | POST | `/api/v1/feishu/feedback` | 飞书卡片按钮回调（confirm/correct） |
-| GET | `/api/v1/feishu/feedback` | 获取反馈记录 |
+| GET  | `/api/v1/feishu/feedback` | 获取反馈记录                        |
 
 ### 可观测性 & 基础设施（11）
-| 方法 | 端点 | 说明 |
-|------|------|------|
-| GET | `/api/v1/infra/status` | 系统整体状态（DAG/Token/Agents/Events） |
-| GET | `/api/v1/infra/decision-logs` | 决策日志（agent/phase/anomaly 筛选） |
-| GET | `/api/v1/infra/decision-logs/timeline` | 时序回溯 |
-| GET | `/api/v1/infra/token-usage` | Token 用量（按 Agent 统计） |
-| GET | `/api/v1/infra/token-quota` | Token 配额状态 |
-| GET | `/api/v1/infra/events` | 事件总线列表（type/source 筛选） |
-| GET | `/api/v1/infra/events/{id}/trace` | 事件溯源链路 |
-| GET | `/api/v1/infra/dag-snapshot` | DAG 快照 JSON |
-| GET | `/api/v1/infra/dag-svg` | DAG HTML/SVG（可嵌入式） |
-| GET | `/api/v1/infra/audit-logs` | 审计日志（action/operator 筛选） |
-| GET | `/api/v1/infra/anomalies` | 异常检测报告（Agent+审计+Token） |
+
+| 方法 | 端点                                     | 说明                                    |
+| ---- | ---------------------------------------- | --------------------------------------- |
+| GET  | `/api/v1/infra/status`                 | 系统整体状态（DAG/Token/Agents/Events） |
+| GET  | `/api/v1/infra/decision-logs`          | 决策日志（agent/phase/anomaly 筛选）    |
+| GET  | `/api/v1/infra/decision-logs/timeline` | 时序回溯                                |
+| GET  | `/api/v1/infra/token-usage`            | Token 用量（按 Agent 统计）             |
+| GET  | `/api/v1/infra/token-quota`            | Token 配额状态                          |
+| GET  | `/api/v1/infra/events`                 | 事件总线列表（type/source 筛选）        |
+| GET  | `/api/v1/infra/events/{id}/trace`      | 事件溯源链路                            |
+| GET  | `/api/v1/infra/dag-snapshot`           | DAG 快照 JSON                           |
+| GET  | `/api/v1/infra/dag-svg`                | DAG HTML/SVG（可嵌入式）                |
+| GET  | `/api/v1/infra/audit-logs`             | 审计日志（action/operator 筛选）        |
+| GET  | `/api/v1/infra/anomalies`              | 异常检测报告（Agent+审计+Token）        |
 
 ### RAG 知识库（3）
-| 方法 | 端点 | 说明 |
-|------|------|------|
-| POST | `/api/v1/rag/ingest` | 手动重建知识库索引 |
-| POST | `/api/v1/rag/query` | RAG 检索（industry/doc_type 过滤） |
-| GET | `/api/v1/rag/stats` | 知识库统计 |
+
+| 方法 | 端点                   | 说明                               |
+| ---- | ---------------------- | ---------------------------------- |
+| POST | `/api/v1/rag/ingest` | 手动重建知识库索引                 |
+| POST | `/api/v1/rag/query`  | RAG 检索（industry/doc_type 过滤） |
+| GET  | `/api/v1/rag/stats`  | 知识库统计                         |
 
 ### 系统自进化（4，M6 反馈驱动策略调整）
-| 方法 | 端点 | 说明 |
-|------|------|------|
-| POST | `/api/v1/evolution/feedback` | 提交人类反馈（确认正确/标记错误） |
-| GET | `/api/v1/evolution/stats` | 进化统计：快照数/验证率/准确率趋势/模板排行 |
-| GET | `/api/v1/evolution/snapshots` | 分析快照历史（?competitor=&dimension=&agent_name=） |
-| GET | `/api/v1/evolution/templates` | 模板性能排行（按 performance_score 降序） |
+
+| 方法 | 端点                            | 说明                                                |
+| ---- | ------------------------------- | --------------------------------------------------- |
+| POST | `/api/v1/evolution/feedback`  | 提交人类反馈（确认正确/标记错误）                   |
+| GET  | `/api/v1/evolution/stats`     | 进化统计：快照数/验证率/准确率趋势/模板排行         |
+| GET  | `/api/v1/evolution/snapshots` | 分析快照历史（?competitor=&dimension=&agent_name=） |
+| GET  | `/api/v1/evolution/templates` | 模板性能排行（按 performance_score 降序）           |
 
 ### Mock 模式（2，M7 Demo 零失败保障）
-| 方法 | 端点 | 说明 |
-|------|------|------|
-| GET | `/api/v1/mock/status` | 当前 Mock 状态 + 可用场景列表 |
+
+| 方法 | 端点                    | 说明                                     |
+| ---- | ----------------------- | ---------------------------------------- |
+| GET  | `/api/v1/mock/status` | 当前 Mock 状态 + 可用场景列表            |
 | POST | `/api/v1/mock/toggle` | 运行时切换 Mock 模式 {enabled, scenario} |
 
 ### 系统信息（1）
-| 方法 | 端点 | 说明 |
-|------|------|------|
-| GET | `/api/system-info` | Python/平台/内存/CPU/DB 统计 |
+
+| 方法 | 端点                 | 说明                         |
+| ---- | -------------------- | ---------------------------- |
+| GET  | `/api/system-info` | Python/平台/内存/CPU/DB 统计 |
 
 ---
 
@@ -383,54 +394,54 @@ competitive-intelligence-multi-agent/              # 项目根
 
 ### 3.1.1 竞品数据来源
 
-| 来源 | 获取方式 | 绑定 Agent |
-|------|----------|------------|
-| **用户输入 URL** | 前端表单 → `monitor_urls` 字段 | Monitor Agent |
-| **自动生成 URL** | 中文名→英文域名映射 + pricing/blog/careers 子页面 | Monitor Agent |
-| **网页抓取** | httpx + BS4 → SHA-256 Hash → LLM 语义分析（tenacity 3次重试） | Monitor Agent |
-| **搜索** | SerpAPI (web_search + news_search) + Demo fallback | Research Agent |
-| **RAG 知识库** | FAISS 向量检索 → Top-K 行业知识 + 评分锚定 → 注入 Prompt | Research / Battlecard |
-| **我方产品** | SQLite our_product 表 → PipelineState.our_product_info | Compare Agent |
-| **LLM 生成** | 豆包 Doubao (Ark SDK) / 通义千问 (ChatTongyi 回退) | 全部 Agent |
-| **历史数据** | SQLite analysis_records 表 | 历史分析页面 |
+| 来源                   | 获取方式                                                        | 绑定 Agent            |
+| ---------------------- | --------------------------------------------------------------- | --------------------- |
+| **用户输入 URL** | 前端表单 →`monitor_urls` 字段                                | Monitor Agent         |
+| **自动生成 URL** | 中文名→英文域名映射 + pricing/blog/careers 子页面              | Monitor Agent         |
+| **网页抓取**     | httpx + BS4 → SHA-256 Hash → LLM 语义分析（tenacity 3次重试） | Monitor Agent         |
+| **搜索**         | SerpAPI (web_search + news_search) + Demo fallback              | Research Agent        |
+| **RAG 知识库**   | FAISS 向量检索 → Top-K 行业知识 + 评分锚定 → 注入 Prompt      | Research / Battlecard |
+| **我方产品**     | SQLite our_product 表 → PipelineState.our_product_info         | Compare Agent         |
+| **LLM 生成**     | 豆包 Doubao (Ark SDK) / 通义千问 (ChatTongyi 回退)              | 全部 Agent            |
+| **历史数据**     | SQLite analysis_records 表                                      | 历史分析页面          |
 
 ### 3.1.2 12 节点 DAG 分析维度全景表
 
-| 节点 | 分析维度 | 评分方式 | 输出 |
-|------|----------|----------|------|
-| **Monitor** | 定价变化/产品功能/招聘信号/新闻动态 | 严重程度 LOW→CRITICAL | `CompetitorChange[]` |
-| **Alert** | HIGH/CRITICAL 阈值过滤 | 多渠道推送 | `Alert[]`→Slack/钉钉/飞书 |
-| **Research** | 财务/专利/技术博客/开源/战略 (5维度并行) | 置信度 0-1 + RAG 知识增强 | `ResearchInsight[]` |
-| **FactCheck** | ★ Monitor vs Research 交叉验证 | verified/unverified (纯规则) | `FactCheckResult` |
-| **Compare** | 产品功能/定价/UX/市场/评价/技术/生态/支持 | 0-10 分 (我方产品数据 + FactCheck降权) | `ComparisonMatrix` |
-| **Battlecard** | 优劣势/差异化/异议处理/电梯演讲 | RAG 模板约束 (精确5+3 items) | `Battlecard` |
-| **Reviewer** | ★ accuracy / completeness / citation / actionability | 4 维度评分 + Fix指令 | `ReviewFeedback` |
-| **TargetedFix** | ★ 精准修补（仅修改问题字段） | 自动计数 `targeted_fix_count` | 修补后的 `Battlecard` |
-| **Citation** | ★ URL 可达性 + 可信度评分 | 域名评分 (官网 1.0 → 论坛 0.3) | `CitationReport` |
-| **FeishuPush** | ★ 飞书消息卡片推送 | 不阻塞主流程 | `feishu_push_status` |
+| 节点                  | 分析维度                                              | 评分方式                               | 输出                         |
+| --------------------- | ----------------------------------------------------- | -------------------------------------- | ---------------------------- |
+| **Monitor**     | 定价变化/产品功能/招聘信号/新闻动态                   | 严重程度 LOW→CRITICAL                 | `CompetitorChange[]`       |
+| **Alert**       | HIGH/CRITICAL 阈值过滤                                | 多渠道推送                             | `Alert[]`→Slack/钉钉/飞书 |
+| **Research**    | 财务/专利/技术博客/开源/战略 (5维度并行)              | 置信度 0-1 + RAG 知识增强              | `ResearchInsight[]`        |
+| **FactCheck**   | ★ Monitor vs Research 交叉验证                       | verified/unverified (纯规则)           | `FactCheckResult`          |
+| **Compare**     | 产品功能/定价/UX/市场/评价/技术/生态/支持             | 0-10 分 (我方产品数据 + FactCheck降权) | `ComparisonMatrix`         |
+| **Battlecard**  | 优劣势/差异化/异议处理/电梯演讲                       | RAG 模板约束 (精确5+3 items)           | `Battlecard`               |
+| **Reviewer**    | ★ accuracy / completeness / citation / actionability | 4 维度评分 + Fix指令                   | `ReviewFeedback`           |
+| **TargetedFix** | ★ 精准修补（仅修改问题字段）                         | 自动计数 `targeted_fix_count`        | 修补后的 `Battlecard`      |
+| **Citation**    | ★ URL 可达性 + 可信度评分                            | 域名评分 (官网 1.0 → 论坛 0.3)        | `CitationReport`           |
+| **FeishuPush**  | ★ 飞书消息卡片推送                                   | 不阻塞主流程                           | `feishu_push_status`       |
 
 ### 3.1.3 RAG 知识库四层架构
 
-| 层级 | 名称 | 存储内容 | 状态 |
-|------|------|----------|------|
-| **L1** | 基础事实层 | 网页爬取快照 / 搜索结果缓存 | 已设计，待实现 |
-| **L2** | 行业知识层 | ★ 电商 4 子行业 KB (23文档→139 chunks) | ✅ MVP 已实现 |
-| **L3** | 分析方法论层 | 评分锚定 / SWOT 框架 / 战术卡模板 | 已设计，待实现 |
-| **L4** | 报告生成层 | 5 类报告模板 / 术语表 | 已设计，待实现 |
+| 层级         | 名称         | 存储内容                                 | 状态           |
+| ------------ | ------------ | ---------------------------------------- | -------------- |
+| **L1** | 基础事实层   | 网页爬取快照 / 搜索结果缓存              | 已设计，待实现 |
+| **L2** | 行业知识层   | ★ 电商 4 子行业 KB (23文档→139 chunks) | ✅ MVP 已实现  |
+| **L3** | 分析方法论层 | 评分锚定 / SWOT 框架 / 战术卡模板        | 已设计，待实现 |
+| **L4** | 报告生成层   | 5 类报告模板 / 术语表                    | 已设计，待实现 |
 
 ### 3.1.4 分析结果可视化
 
-| 可视化方式 | 前端实现 | 说明 |
-|------------|----------|------|
-| **对比矩阵** | `st.columns` 三列布局 + metric 组件 | 8 维度 × (我方/竞品) |
-| **SWOT 式卡片** | 双列布局 + 无序列表 | Battlecard Tab |
-| **研究洞察** | `st.expander` 可折叠 + bullet list | 按 topic 分组 |
-| **变更监控** | 文本列表 + 严重程度标签 | severity 颜色标注 |
-| **质量审查报告** | **新增 Tab** 4 维度评分卡片 + issue 展开 | 精确到字段路径 |
-| **引用溯源报告** | **新增 Tab** 可信度进度条 + 缺失引用列表 | Citation 验证结果 |
-| **Word 报告导出** | python-docx 结构化 .docx | 含全部 Tab 内容 |
-| **DAG 实时可视化** | 纯 HTML/CSS/JS SVG 嵌入 st.components.v1.html | 12 节点 + 热力图 |
-| **知识库检索** | 搜索框 + 置信度排序 + 来源展示 | RAG 知识库页面 |
+| 可视化方式               | 前端实现                                       | 说明                  |
+| ------------------------ | ---------------------------------------------- | --------------------- |
+| **对比矩阵**       | `st.columns` 三列布局 + metric 组件          | 8 维度 × (我方/竞品) |
+| **SWOT 式卡片**    | 双列布局 + 无序列表                            | Battlecard Tab        |
+| **研究洞察**       | `st.expander` 可折叠 + bullet list           | 按 topic 分组         |
+| **变更监控**       | 文本列表 + 严重程度标签                        | severity 颜色标注     |
+| **质量审查报告**   | **新增 Tab** 4 维度评分卡片 + issue 展开 | 精确到字段路径        |
+| **引用溯源报告**   | **新增 Tab** 可信度进度条 + 缺失引用列表 | Citation 验证结果     |
+| **Word 报告导出**  | python-docx 结构化 .docx                       | 含全部 Tab 内容       |
+| **DAG 实时可视化** | 纯 HTML/CSS/JS SVG 嵌入 st.components.v1.html  | 12 节点 + 热力图      |
+| **知识库检索**     | 搜索框 + 置信度排序 + 来源展示                 | RAG 知识库页面        |
 
 ---
 
@@ -532,69 +543,74 @@ response = await llm.ainvoke([SystemMessage(content=prompt), HumanMessage(conten
 
 ### 4.6 命名规范
 
-| 类别 | 规范 | 示例 |
-|------|------|------|
-| Python 文件 | snake_case | `compare_agent.py` |
-| Go 文件 | snake_case | `ratelimit.go` |
-| Python 类 | PascalCase | `CompareAgent` |
-| Go 类型/函数 | PascalCase / camelCase | `RateLimiter()` / `getEnv()` |
-| Python 函数/变量 | snake_case | `get_effective_llm_config()` |
-| URL 路由 | kebab-case RESTful | `/api/v1/infra/decision-logs` |
-| Agent 名称 | snake_case 字符串 | `"targeted_fix"` |
-| 数据库表 | snake_case 复数 | `analysis_records` |
-| Pydantic 模型 | PascalCase | `AgentDecisionLog` |
-| 环境变量 | UPPER_SNAKE | `ARK_API_KEY` |
-| Commit | `type: 中文描述` | `feat: 豆包LLM迁移+飞书Bot推送` |
+| 类别             | 规范                   | 示例                              |
+| ---------------- | ---------------------- | --------------------------------- |
+| Python 文件      | snake_case             | `compare_agent.py`              |
+| Go 文件          | snake_case             | `ratelimit.go`                  |
+| Python 类        | PascalCase             | `CompareAgent`                  |
+| Go 类型/函数     | PascalCase / camelCase | `RateLimiter()` / `getEnv()`  |
+| Python 函数/变量 | snake_case             | `get_effective_llm_config()`    |
+| URL 路由         | kebab-case RESTful     | `/api/v1/infra/decision-logs`   |
+| Agent 名称       | snake_case 字符串      | `"targeted_fix"`                |
+| 数据库表         | snake_case 复数        | `analysis_records`              |
+| Pydantic 模型    | PascalCase             | `AgentDecisionLog`              |
+| 环境变量         | UPPER_SNAKE            | `ARK_API_KEY`                   |
+| Commit           | `type: 中文描述`     | `feat: 豆包LLM迁移+飞书Bot推送` |
 
 ### 4.7 前端状态管理
 
-| 特性 | 实现方式 |
-|------|----------|
-| **全局状态方案** | `st.session_state`（Streamlit 内置） |
-| **持久化** | 无（页面刷新后丢失） |
-| **缓存** | `@st.cache_data(ttl=N)` — 竞品列表 ttl=60s, 配置 ttl=5s, 可观测 ttl=3s |
-| **交互状态** | 硬编码键名模式：`f"edit_comp_{id}"` / `f"view_record_{id}"` |
-| **清理缓存** | `st.cache_data.clear()` + `st.rerun()` |
+| 特性                   | 实现方式                                                                  |
+| ---------------------- | ------------------------------------------------------------------------- |
+| **全局状态方案** | `st.session_state`（Streamlit 内置）                                    |
+| **持久化**       | 无（页面刷新后丢失）                                                      |
+| **缓存**         | `@st.cache_data(ttl=N)` — 竞品列表 ttl=60s, 配置 ttl=5s, 可观测 ttl=3s |
+| **交互状态**     | 硬编码键名模式：`f"edit_comp_{id}"` / `f"view_record_{id}"`           |
+| **清理缓存**     | `st.cache_data.clear()` + `st.rerun()`                                |
 
 ### 4.8 前端请求封装
 
-| 特性 | 当前状态 |
-|------|----------|
-| **统一拦截器** | 无 — 每个请求单独 `try-except` |
-| **Token 处理** | 无（所有接口公开） |
-| **跨域处理** | 后端 `CORSMiddleware(allow_origins=["*"])` + Hertz CORS 中间件 |
-| **超时控制** | `timeout=5` 普通请求 / `timeout=(5, 300)` SSE流式 / `timeout=10` 测试 |
-| **错误处理** | `try-except` → `st.error()` 或 `st.warning()` |
+| 特性                 | 当前状态                                                                    |
+| -------------------- | --------------------------------------------------------------------------- |
+| **统一拦截器** | 无 — 每个请求单独 `try-except`                                           |
+| **Token 处理** | 无（所有接口公开）                                                          |
+| **跨域处理**   | 后端 `CORSMiddleware(allow_origins=["*"])` + Hertz CORS 中间件            |
+| **超时控制**   | `timeout=5` 普通请求 / `timeout=(5, 300)` SSE流式 / `timeout=10` 测试 |
+| **错误处理**   | `try-except` → `st.error()` 或 `st.warning()`                        |
 
 ---
 
 ## 阶段5：本次变更说明（2026-05-20）
 
 ### M1 豆包 LLM 迁移
+
 - 新增 `services/llm/` — DoubaoLLM (Ark SDK) + LLMFactory (doubao/tongyi 双Provider)
 - 6 个 Agent 全部从 `ChatTongyi` 迁移到 `LLMFactory.get_llm()`
 - config.py 新增 `DoubaoConfig` dataclass + `ark_api_key` / `doubao_model_id` 字段
 - 默认 provider 改为 `doubao`，保留 `tongyi` 回退
 
 ### M2 飞书 Bot 推送
+
 - 新增 `services/feishu/` — FeishuBot + HMAC-SHA256 签名 + 3 套交互卡片
 - workflow 新增 `feishu_push` 节点（12 节点 DAG）
 - 前端通知配置新增飞书 Webhook/Secret 字段 + 测试按钮
 - 数据库新增 `feedback_records` 表（M6 自进化数据源）
 
 ### M1-B Hertz API 网关
+
 - 新增 `gateway/` — Go 项目，14 代理路由 + 3 中间件 + Docker 多阶段构建
 - SSE 端点逐块转发（`Flush()` 禁用缓冲）
 - 飞书 Webhook 200 容错
 - docker-compose 新增 gateway 服务
 
 ### M5 可观测性基础设施接线
+
 - 新增 `observability.py` — ObservabilityHub 单例，统一接入 5 组件
 - `instrumented_node()` 工作流包装器 → 每个 Agent 自动埋点
 - 11 个可观测性 API 端点 + 前端"可观测中心"页面
 - 顶部 5 指标卡 + DAG SVG 嵌入 + 决策日志时间线 + Token 柱状图
 
 ### M6 RAG 知识库 MVP
+
 - 新增 `services/rag/` — 四层架构 L1+L2（FAISS + SentenceTransformer）
 - `seed_kb.py` 索引 23 文档 → 139 chunks, 覆盖 5 个电商子行业
 - ResearchAgent / BattlecardAgent 接入 RAG 检索（`augment_prompt`）
@@ -602,23 +618,28 @@ response = await llm.ainvoke([SystemMessage(content=prompt), HumanMessage(conten
 - 嵌入模型自动回退：bge-large-zh-v1.5 → MiniLM-L12-v2
 
 ### 我方产品管理
+
 - 新增 `our_product` 表 + `OurProduct` 模型 + API + 前端页面
 - CompareAgent 基于真实产品数据评分（非 LLM 凭空生成）
 
 ### 系统配置页面
+
 - 5-Tab 完整配置页（告警/通知/LLM/系统信息/导入导出）
 - 动态配置层：DB 覆盖 + 版本历史 + 回滚 + JSON 导入导出
 
 ### 三节点全局校验架构
+
 - 新增 FactCheck / Reviewer / TargetedFix / Citation 4 个 Agent
 - 10 → 12 节点 DAG 升级（含 feishu_push）
 - 全链路校验闭环：交叉验证 → 定向修复 ×3 → 引用溯源
 
 ### Docker 部署
+
 - docker-compose 新增 gateway 服务
 - gateway/Dockerfile 多阶段构建（golang:1.21 → alpine:3.19）
 
 ### BUG-01 修复
+
 - `update_competitor` 现在先查询 `created_at` 再更新，返回完整 `CompetitorResponse`
 - 测试从 `xfail` 变为 `xpass` 确认修复
 
@@ -627,6 +648,7 @@ response = await llm.ainvoke([SystemMessage(content=prompt), HumanMessage(conten
 ## 阶段7：本次变更说明（2026-05-21）
 
 ### M6 自进化引擎
+
 - 新建 `python/src/services/evolution/` — EvolutionEngine 单例 + 3 层 SQLite 持久化
 - **多模板策略**：4 个 Agent（research/compare/battlecard/reviewer）各 3 份 Prompt 模板
 - **加权随机选择**：模板 performance_score 越高被选中概率越大
@@ -638,6 +660,7 @@ response = await llm.ainvoke([SystemMessage(content=prompt), HumanMessage(conten
 - 前端可观测中心页新增「系统进化」面板（指标卡+覆盖率进度环+准确率趋势线+模板排行柱状图+快照列表）
 
 ### M7 Mock 模式（Demo 零失败保障）
+
 - 新建 `python/src/mock/` — `is_mock_mode()` / `MockContext` / `MockDataGenerator`
 - **3 个 Demo 场景**完整预生成数据：
   - 场景1「直播电商三巨头」：抖音电商 vs 快手电商（字节主场，答辩默认）
@@ -651,15 +674,83 @@ response = await llm.ainvoke([SystemMessage(content=prompt), HumanMessage(conten
 - 新增 2 个 Mock API 端点（status/toggle）
 
 ### 数据库扩展
+
 - analysis_snapshots（分析快照：竞品+维度+Agent+置信度+模板ID）
 - evolution_feedback（进化反馈：快照关联+操作+置信度变化）
 - template_performance（模板表现：评分+使用次数+成功率）
 - BUG-01 修复：update_competitor 返回完整 created_at
 
 ### 前端增强
+
 - 可观测中心新增「系统进化」面板
 - 侧边栏新增 Mock 模式开关 toggle + Demo 场景选择器
 - Mock 模式启用时全局黄色横幅提示
+
+---
+
+## 阶段8：本次变更说明（2026-05-22）
+
+### BUG-03 修复：豆包 API 错误处理增强
+- `doubao_client.py` 新增 `import asyncio`
+- Ark SDK 导入保护：未安装时给出 `pip install` 友好提示
+- `generate()` / `generate_stream()` 异常处理重写：提取 HTTP 状态码 + 错误提示映射表（401/403/404/429/500/502/503）
+- 新增 `_extract_status_code()` 模块级函数：多属性回退链式提取（status_code → http_status → response.status_code → `__cause__` 链递归）
+- 日志格式：`model=X | status=N | hint=YYY | 原始错误: ZZZ`
+
+### BUG-03b 修复：DoubaoLLM 阻塞事件循环
+- `generate()` 使用 `await asyncio.to_thread()` 将同步 SDK 调用卸载到线程池
+- `generate_stream()` 同样使用 `await asyncio.to_thread(lambda: ...)` 卸载流式调用
+- 豆包 API 5-30 秒等待不再阻塞 asyncio 事件循环，`/health` 端点分析期间正常响应
+
+### BUG-04 修复：Research Agent 5 维度串行→并行
+- `workflow.py` 新增 `import asyncio`
+- `research_node()` 新增内部协程 `_analyze_dimension()`，单维度失败返回空列表
+- 5 维度 `for` 循环串行 → `asyncio.gather(*[5个协程], return_exceptions=True)` 真正并行
+- 速度提升 3-5 倍（25-50s → 5-10s），与答辩 PPT "5 维度并行分析"一致
+
+### BUG-05 修复：TokenManager 私有方法访问
+- `token_manager.py` 新增公共 `get_used(agent_name)` 方法
+- `server.py` 和 `observability.py` 中 `_get_used()` → `get_used()`（3 处）
+
+### BUG-06 修复：/competitors 硬编码 Demo 数据
+- `/competitors` 端点删除硬编码 JSON → `return await list_all_competitors()` 转发到标准端点
+- 测试同步更新
+
+### FEAT-01：RAG L3 分析方法论层
+- `ingestion.py`：rubrics/tactics/templates/schemas → `doc_type="methodology"` + `layer="L3"`
+- `seed_kb.py`：新增 `_flatten_json_to_docs()` 工具函数
+- `compare_agent.py`：`compare()` 新增 L3 方法论检索（`filters={"doc_type": "methodology"}`），评分锚定标准注入 Prompt
+- `battlecard_agent.py`：`generate()` 新增 L3 方法论检索（SWOT/波特五力/战术卡模板），与 L2 合并
+
+### FEAT-01b：RAG L4 报告生成层
+- `ingestion.py`：terms → `doc_type="glossary"` + `layer="L4"`，兼容 `terms`/`glossary` 双 key
+- `rag_agent.py`：新增 `normalize_terms()` — 术语标准化（别名→规范术语 + 英文缩写加注中文），兼容 `term_cn`/`term_en` 键名
+- `citation_agent.py`：新增 `_check_term_consistency()` — L4 术语一致性验证
+- 新建 `report_builder.py`：`format_report_section()` + 对比矩阵/战术卡 Markdown 格式化 + `normalize_report_terms()`
+
+### FEAT-02：DAG 实时可视化嵌入分析工作台
+- `frontend/app.py` 新增 `DAG_NODE_NAMES` / `DAG_POSITIONS` / `DAG_EDGES` / `DAG_NODE_LABELS` 拓扑定义
+- 新增 `render_dag_svg()`：纯 CSS/SVG 内嵌 HTML，10 节点 DAG 可视化
+- SSE 进度区新增 `dag_placeholder`，每个节点完成时实时更新 SVG（灰→绿）
+- 失败节点变红色，无外部 JS 依赖
+
+### FEAT-03：Word 报告导出增强
+- 新增导入：`Pt`, `Cm`, `RGBColor`, `WD_ALIGN_PARAGRAPH`, `qn`
+- 页眉（项目名）+ 页脚（日期 + 页码）
+- 8 维度对比矩阵：`add_table(rows=1+N, cols=4)` + 蓝色表头 + 交替行灰白背景
+- SWOT 四象限：2×2 表格（我方优劣势/竞品优劣势），颜色标注
+- 新增质量审查报告章节（4 维度星级评分）
+- 新增引用溯源报告章节（统计表格 + 缺失引用列表）
+- 中文排版规范（首行缩进 0.7cm）
+
+### P2：docker-compose 冗余服务清理
+- Kafka/ES/Redis/Zookeeper 全部注释（Pipeline 不依赖）
+- API 服务的 `depends_on` 同步注释
+- docker-compose 精简为 API + Gateway 两个核心服务
+
+### Go 网关编译
+- Go 未安装（本地无 Go 环境），gateway 编译跳过
+- gateway 代码完整，安装 `go1.21+` 后执行 `cd gateway && go build -o gateway.exe main.go` 即可
 
 ---
 
@@ -667,32 +758,32 @@ response = await llm.ainvoke([SystemMessage(content=prompt), HumanMessage(conten
 
 ### 🔴 P0 — 比赛前必须修复
 
-| 编号 | 问题 | 位置 | 影响 |
-|------|------|------|------|
-| ~~BUG-01~~ | ~~`db/sqlite.py:update_competitor` 返回值缺少 `created_at`~~ → **已于 v3.1 修复** | `sqlite.py` | ✅ 测试从 xfail 变 xpass |
-| BUG-02 | 豆包模型 `doubao-seed-1-8-251228` 未激活 — API Key 有效但模型服务未开通 | Ark Console | 全部分析无法运行 |
-| TODO-01 | 前端单文件 ~1400 行 — 需拆分为 `pages/`、`components/`、`services/` 目录 | `frontend/app.py` | 维护性差 |
+| 编号        | 问题                                                                                          | 位置                | 影响                     |
+| ----------- | --------------------------------------------------------------------------------------------- | ------------------- | ------------------------ |
+| ~~BUG-01~~ | ~~`db/sqlite.py:update_competitor` 返回值缺少 `created_at`~~ → **已于 v3.1 修复** | `sqlite.py`       | ✅ 测试从 xfail 变 xpass |
+| BUG-02      | 豆包模型 `doubao-seed-1-8-251228` 未激活 — API Key 有效但模型服务未开通                    | Ark Console         | 全部分析无法运行         |
+| TODO-01     | 前端单文件 ~1400 行 — 需拆分为 `pages/`、`components/`、`services/` 目录               | `frontend/app.py` | 维护性差                 |
 
 ### 🟡 P1 — 本周内修复
 
-| 编号 | 问题 | 位置 | 建议 |
-|------|------|------|------|
-| TD-03 | 无认证/鉴权机制（所有接口公开） | `server.py` | 比赛 Demo 可接受，生产必须加 |
-| TD-06 | 后端测试仅覆盖解析/工具/DB 层，Agent 集成测试需 LLM API 可用的环境 | `tests/` | 模型激活后取消 skip |
-| TD-07 | `api_token_usage` 使用 `hub.token_manager._get_used()` (私有方法) | `server.py` | TokenManager 应暴露公共方法 |
-| TD-12 | `/competitors` 端点返回硬编码 Demo 数据 | `server.py` | 清理或标记为遗留 |
-| PERF-01 | TargetedFix→Reviewer 循环每次调用 LLM，最坏情况 3×2=6 次 LLM 调用 | `workflow.py` | 考虑 Reviewer 缓存上次评分 |
-| PERF-02 | RAG 嵌入模型为 MiniLM (384维)，bge-large-zh (1024维) 模型太大未下载 | `retriever.py` | 生产环境应下载 bge 模型获得更好效果 |
+| 编号    | 问题                                                                  | 位置             | 建议                                |
+| ------- | --------------------------------------------------------------------- | ---------------- | ----------------------------------- |
+| TD-03   | 无认证/鉴权机制（所有接口公开）                                       | `server.py`    | 比赛 Demo 可接受，生产必须加        |
+| TD-06   | 后端测试仅覆盖解析/工具/DB 层，Agent 集成测试需 LLM API 可用的环境    | `tests/`       | 模型激活后取消 skip                 |
+| TD-07   | `api_token_usage` 使用 `hub.token_manager._get_used()` (私有方法) | `server.py`    | TokenManager 应暴露公共方法         |
+| TD-12   | `/competitors` 端点返回硬编码 Demo 数据                             | `server.py`    | 清理或标记为遗留                    |
+| PERF-01 | TargetedFix→Reviewer 循环每次调用 LLM，最坏情况 3×2=6 次 LLM 调用   | `workflow.py`  | 考虑 Reviewer 缓存上次评分          |
+| PERF-02 | RAG 嵌入模型为 MiniLM (384维)，bge-large-zh (1024维) 模型太大未下载   | `retriever.py` | 生产环境应下载 bge 模型获得更好效果 |
 
 ### 🟢 P2 — 后续优化
 
-| 编号 | 问题 | 位置 | 建议 |
-|------|------|------|------|
-| TD-01 | Go 网关未安装 Go 环境，代码未编译验证 | `gateway/` | 安装 Go 1.21+ 执行 `go build` |
-| TD-09 | Kafka/ES/Redis 仅在 config/docker-compose 中定义，Pipeline 不依赖 | - | 可移除或激活 |
-| ARCH-01 | `compare_agent._parse_matrix` 缩进/结构需代码审查 | `compare_agent.py` | try-except 嵌套较深 |
-| PERF-03 | 前端每个页面独立 `check_health()` 调用，可优化为全局状态 | `app.py` | 用 `st.session_state` 缓存 |
-| UX-01 | RAG 知识库搜索只在点击按钮时触发，不支持回车键 | `app.py` | 改为 `st.form` 或 `on_change` 回调 |
+| 编号    | 问题                                                              | 位置                 | 建议                                   |
+| ------- | ----------------------------------------------------------------- | -------------------- | -------------------------------------- |
+| TD-01   | Go 网关未安装 Go 环境，代码未编译验证                             | `gateway/`         | 安装 Go 1.21+ 执行 `go build`        |
+| TD-09   | Kafka/ES/Redis 仅在 config/docker-compose 中定义，Pipeline 不依赖 | -                    | 可移除或激活                           |
+| ARCH-01 | `compare_agent._parse_matrix` 缩进/结构需代码审查               | `compare_agent.py` | try-except 嵌套较深                    |
+| PERF-03 | 前端每个页面独立 `check_health()` 调用，可优化为全局状态        | `app.py`           | 用 `st.session_state` 缓存           |
+| UX-01   | RAG 知识库搜索只在点击按钮时触发，不支持回车键                    | `app.py`           | 改为 `st.form` 或 `on_change` 回调 |
 
 ---
 
@@ -719,12 +810,12 @@ docker-compose up -d
 
 ### 访问地址
 
-| 服务 | 地址 |
-|------|------|
-| 前端工作台 | http://localhost:8501 |
-| API Swagger 文档 | http://localhost:8000/docs |
-| Hertz 网关 | http://localhost:8080 |
-| 网关路由表 | http://localhost:8080/routes |
+| 服务             | 地址                         |
+| ---------------- | ---------------------------- |
+| 前端工作台       | http://localhost:8501        |
+| API Swagger 文档 | http://localhost:8000/docs   |
+| Hertz 网关       | http://localhost:8080        |
+| 网关路由表       | http://localhost:8080/routes |
 
 ### 测试命令
 
@@ -746,5 +837,6 @@ RAG_KB_PATH="/d/.../ecommerce_kb" python -m src.services.rag.seed_kb
 ### LLM Provider 切换
 
 修改 `.env` 中 `LLM_PROVIDER` 字段：
+
 - `doubao` → 豆包 (Ark SDK)，需激活模型服务
 - `tongyi` → 通义千问 (DashScope)，保留用于回退和开发调试

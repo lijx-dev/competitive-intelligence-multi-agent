@@ -449,17 +449,10 @@ async def analyze_stream(req: AnalyzeRequest):
     return EventSourceResponse(event_generator())
 
 
-@app.get("/competitors")
-async def list_competitors():
-    """Return a list of pre-configured competitors (demo endpoint)."""
-    return {
-        "competitors": [
-            {"name": "CompetitorA", "website": "https://competitora.com"},
-            {"name": "CompetitorA", "website": "https://competitora.com"},
-            {"name": "CompetitorB", "website": "https://competitorb.com"},
-            {"name": "CompetitorC", "website": "https://competitorc.com"},
-        ]
-    }
+@app.get("/competitors", summary="竞品列表（兼容旧版路径）")
+async def legacy_list_competitors():
+    """遗留端点 — 转发到标准 /competitors/all。"""
+    return await list_all_competitors()
 # ---------------------------------------------------------------------------
 # 新增：竞品管理接口
 # ---------------------------------------------------------------------------
@@ -764,7 +757,7 @@ async def api_token_usage(agent: str = "", start: str = "", end: str = ""):
     from ..infrastructure.observability import DAG_NODES
     statuses = {}
     for nid, _, _, _ in DAG_NODES:
-        used = hub.token_manager._get_used(nid)
+        used = hub.token_manager.get_used(nid)
         if used["input"] + used["output"] > 0:
             statuses[nid] = used
     return {"agents": statuses, "total_input": sum(s["input"] for s in statuses.values()),
@@ -775,7 +768,7 @@ async def api_token_usage(agent: str = "", start: str = "", end: str = ""):
 async def api_token_quota():
     quotas = {}
     for q in hub.token_manager.get_all_quotas():
-        used = hub.token_manager._get_used(q.agent_name)
+        used = hub.token_manager.get_used(q.agent_name)
         quotas[q.agent_name] = {
             "quota_input": q.max_input_tokens, "quota_output": q.max_output_tokens,
             "used_input": used["input"], "used_output": used["output"],

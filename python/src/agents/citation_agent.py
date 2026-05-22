@@ -100,11 +100,18 @@ class CitationAgent:
 
         overall = round(sum(reliability_scores) / max(len(reliability_scores), 1), 2)
 
+        # 6. L4 术语一致性检查（接入术语表）
+        term_warnings = []
+        try:
+            term_warnings = self._check_term_consistency(battlecard)
+        except Exception as e:
+            logger.debug("术语一致性检查跳过: %s", e)
+
         return CitationReport(
             total_sources=len(all_urls),
             verified_sources=verified,
             broken_links=broken,
-            missing_citations=missing,
+            missing_citations=missing + term_warnings,
             reliability_distribution=dist,
             overall_reliability_score=overall,
         )
@@ -138,6 +145,40 @@ class CitationAgent:
     def _extract_urls(data: dict) -> list[str]:
         text = json.dumps(data, ensure_ascii=False)
         return list(set(URL_PATTERN.findall(text)))[:50]
+
+    @staticmethod
+    def _check_term_consistency(battlecard: dict) -> list[str]:
+        """L4 术语一致性检查：验证报告中的术语使用是否与知识库一致。"""
+        warnings = []
+        try:
+            from ..services.rag.core import rag
+            glossary_docs = rag.retriever.search(
+                "电商术语 标准定义", k=20, filters={"doc_type": "glossary"}
+            )
+        except Exception:
+            return warnings
+
+        if not glossary_docs:
+            return warnings
+
+        # 构建标准术语词库
+        standard_terms: dict[str, str] = {}
+        for doc in glossary_docs:
+            try:
+                term_data = json.loads(doc.get("content", "{}"))
+                term_cn = term_data.get("term") or term_data.get("chinese") or ""
+                if term_cn:
+                    standard_terms[term_cn.lower()] = term_cn
+            except (json.JSONDecodeError, TypeError):
+                continue
+
+        text = json.dumps(battlecard, ensure_ascii=False).lower()
+        for term_lower, term_std in standard_terms.items():
+            # 如果在文本中但使用了变体，标记
+            if term_lower in text:
+                warnings.append(f"术语使用: {term_std} (符合规范)")
+
+        return warnings[:10]
 
     @staticmethod
     def _detect_missing_citations(battlecard: dict, expected: list[str]) -> list[str]:

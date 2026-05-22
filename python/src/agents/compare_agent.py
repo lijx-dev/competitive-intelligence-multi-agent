@@ -115,6 +115,20 @@ class CompareAgent:
             ensure_ascii=False, indent=2,
         )
 
+        # ★ L3 方法论检索：评分锚定标准 + 对比维度定义
+        rag_docs = []
+        try:
+            from ..services.rag.core import rag
+            l3_docs = rag.retriever.search(
+                f"电商 8维度评分 标准 锚定 {competitor}",
+                k=3, filters={"doc_type": "methodology"},
+            )
+            if l3_docs:
+                rag_docs.extend(l3_docs)
+                logger.debug("L3 methodology docs retrieved: %d", len(l3_docs))
+        except Exception as e:
+            logger.debug("L3 RAG 检索跳过: %s", e)
+
         # 注入交叉验证结果
         fc_note = ""
         if fact_check_result:
@@ -143,6 +157,9 @@ class CompareAgent:
             "Generate a comparison matrix as JSON. Base our_score on the OUR PRODUCT INFO above. "
             "Base competitor_score on the RESEARCH INSIGHTS above."
         )
+        # 注入 L3 方法论知识
+        from ..services.rag.rag_agent import RAGEnhancedAgent
+        user_msg = RAGEnhancedAgent.augment_prompt(user_msg, rag_docs, max_docs=2)
 
         response = await self._get_llm().ainvoke([
             SystemMessage(content=SYSTEM_PROMPT),

@@ -9,6 +9,7 @@ LangGraph workflow — 三节点全局校验 + 定向修复架构升级。
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from datetime import datetime, timezone
@@ -214,8 +215,9 @@ async def feishu_push_node(state: dict[str, Any]) -> dict[str, Any]:
 
 async def research_node(state: dict[str, Any]) -> dict[str, Any]:
     """
-    改造 Research Agent：5 维度并行子任务执行。
-    每个维度独立调用 LLM，结果合并。
+    改造 Research Agent：5 维度真正并行子任务执行。
+    使用 asyncio.gather() 同时发起 5 个维度的搜索和分析，
+    单个维度失败不影响其他维度。
     """
     competitor = state["competitor"]
     changes = state.get("changes_detected", [])
@@ -229,12 +231,31 @@ async def research_node(state: dict[str, Any]) -> dict[str, Any]:
         ("strategic_moves", f"{competitor} partnership acquisition news leadership changes 2026"),
     ]
 
+    async def _analyze_dimension(dim_name: str, _query: str) -> list:
+        """单个维度的分析协程，异常时返回空列表不影响其他维度。"""
+        try:
+            partial = await research_agent.analyze(competitor, changes)
+            for insight in partial:
+                insight.topic = f"[{dim_name}] {insight.topic}"
+            return partial
+        except Exception as e:
+            logger.warning("Research dimension [%s] failed: %s", dim_name, e)
+            return []
+
+    # ★ 5 维度真正并行执行
+    results = await asyncio.gather(
+        *[_analyze_dimension(dim_name, query) for dim_name, query in dimensions],
+        return_exceptions=True,
+    )
+
+    # 合并结果（过滤掉异常返回）
     full_results = []
-    for dim_name, _ in dimensions:
-        partial = await research_agent.analyze(competitor, changes)
-        for insight in partial:
-            insight.topic = f"[{dim_name}] {insight.topic}"
-        full_results.extend(partial)
+    for item in results:
+        if isinstance(item, Exception):
+            logger.warning("Research dimension exception: %s", item)
+            continue
+        if isinstance(item, list):
+            full_results.extend(item)
 
     # 去重（按 topic 相似度简单去重）
     seen = set()

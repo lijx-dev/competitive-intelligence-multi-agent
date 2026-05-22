@@ -9,11 +9,17 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import datetime
 from typing import Any, AsyncGenerator, Optional
 
-from volcenginesdkarkruntime import Ark
+try:
+    from volcenginesdkarkruntime import Ark
+except ImportError:
+    raise ImportError(
+        "火山引擎 Ark SDK 未安装。请运行: pip install volcengine-python-sdk[ark]"
+    )
 
 logger = logging.getLogger(__name__)
 
@@ -107,7 +113,9 @@ class DoubaoLLM:
         request_params.update(kwargs)
 
         try:
-            response = self._client.chat.completions.create(**request_params)
+            response = await asyncio.to_thread(
+                self._client.chat.completions.create, **request_params
+            )
             choice = response.choices[0]
 
             # 处理 tool_calls 场景
@@ -127,7 +135,23 @@ class DoubaoLLM:
                 "model": response.model,
             }
         except Exception as e:
-            logger.error("豆包 API 调用失败: %s", str(e))
+            error_msg = str(e)
+            status_code = _extract_status_code(e)
+
+            error_hints: dict[int, str] = {
+                401: f"API Key 无效或已过期，请检查环境变量 ARK_API_KEY",
+                403: f"模型服务未开通，请在火山引擎控制台开通 {self.model_id}",
+                404: f"模型 {self.model_id} 不存在，请检查 DOUBAO_MODEL_ID",
+                429: "API 调用频率超限或 Token 额度不足",
+                500: "火山引擎服务端错误，请稍后重试",
+                502: "火山引擎网关错误，请稍后重试",
+                503: "火山引擎服务暂不可用，请稍后重试",
+            }
+            hint = error_hints.get(status_code, "")
+            logger.error(
+                "豆包 API 调用失败 | model=%s | status=%s | hint=%s | 原始错误: %s",
+                self.model_id, status_code or "N/A", hint or "未知错误类型", error_msg
+            )
             raise
 
     # ── 流式生成（SSE 场景） ─────────────────────────────────
@@ -146,18 +170,35 @@ class DoubaoLLM:
         messages.append({"role": "user", "content": prompt})
 
         try:
-            stream = self._client.chat.completions.create(
-                model=self.model_id,
-                messages=messages,
-                temperature=temperature if temperature is not None else self.temperature,
-                max_tokens=max_tokens or self.max_tokens,
-                stream=True,
+            stream = await asyncio.to_thread(
+                lambda: self._client.chat.completions.create(
+                    model=self.model_id,
+                    messages=messages,
+                    temperature=temperature if temperature is not None else self.temperature,
+                    max_tokens=max_tokens or self.max_tokens,
+                    stream=True,
+                )
             )
             for chunk in stream:
                 if chunk.choices and chunk.choices[0].delta.content:
                     yield chunk.choices[0].delta.content
         except Exception as e:
-            logger.error("豆包流式调用失败: %s", str(e))
+            error_msg = str(e)
+            status_code = _extract_status_code(e)
+            error_hints: dict[int, str] = {
+                401: f"API Key 无效或已过期，请检查环境变量 ARK_API_KEY",
+                403: f"模型服务未开通，请在火山引擎控制台开通 {self.model_id}",
+                404: f"模型 {self.model_id} 不存在，请检查 DOUBAO_MODEL_ID",
+                429: "API 调用频率超限或 Token 额度不足",
+                500: "火山引擎服务端错误，请稍后重试",
+                502: "火山引擎网关错误，请稍后重试",
+                503: "火山引擎服务暂不可用，请稍后重试",
+            }
+            hint = error_hints.get(status_code, "")
+            logger.error(
+                "豆包流式调用失败 | model=%s | status=%s | hint=%s | 原始错误: %s",
+                self.model_id, status_code or "N/A", hint or "未知错误类型", error_msg
+            )
             raise
 
     # ── LangChain 兼容接口 ───────────────────────────────────
@@ -225,3 +266,35 @@ class _FakeAIMessage:
             "input_tokens": usage.get("input_tokens", 0),
             "output_tokens": usage.get("output_tokens", 0),
         }
+
+
+def _extract_status_code(exc: Exception) -> int:
+    """从异常对象中提取 HTTP 状态码。
+
+    兼容多种 SDK 异常类型：
+      - openai.APIStatusError (status_code 属性)
+      - volcengine Ark SDK 异常 (可能用 http_status / status / code)
+      - requests.HTTPError (response.status_code)
+    """
+    for attr in ("status_code", "http_status", "status", "code"):
+        val = getattr(exc, attr, None)
+        if isinstance(val, int) and 100 <= val <= 599:
+            return val
+
+    # 尝试从嵌套 response 对象中获取
+    response = getattr(exc, "response", None)
+    if response is not None:
+        for attr in ("status_code", "http_status", "status"):
+            val = getattr(response, attr, None)
+            if isinstance(val, int) and 100 <= val <= 599:
+                return val
+
+    # 从 __cause__ 链中查找
+    cause = exc.__cause__
+    while cause is not None:
+        val = _extract_status_code(cause)
+        if val:
+            return val
+        cause = cause.__cause__
+
+    return 0

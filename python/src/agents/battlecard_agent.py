@@ -45,13 +45,23 @@ class BattlecardAgent:
         comparison: dict,
         research: list[dict],
     ) -> Battlecard:
-        # ★ RAG 检索：评分锚定标准 + 战术卡模板
+        # ★ RAG 检索：L2 行业知识 + L3 战术卡/SWOT/波特五力模板
         rag_docs = []
         try:
             from ..services.rag.core import rag
-            rag_docs = rag.multi_recall(
+            # L2 行业知识
+            l2_docs = rag.multi_recall(
                 f"{competitor} 销售战术卡 异议处理 竞争优劣势", k_per_strategy=3
             )
+            rag_docs.extend(l2_docs)
+            # L3 方法论检索：SWOT + 波特五力 + 战术卡模板
+            l3_docs = rag.retriever.search(
+                f"SWOT 波特五力 战术卡 模板 {competitor}",
+                k=2, filters={"doc_type": "methodology"},
+            )
+            if l3_docs:
+                rag_docs.extend(l3_docs)
+                logger.debug("L3 methodology docs for battlecard: %d", len(l3_docs))
         except Exception as e:
             logger.debug("RAG 检索跳过: %s", e)
 

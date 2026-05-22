@@ -218,7 +218,7 @@ class ObservabilityHub:
 
         token_statuses = {}
         for nid, _, _, _ in DAG_NODES:
-            used = self.token_manager._get_used(nid)
+            used = self.token_manager.get_used(nid)
             if used["input"] + used["output"] > 0:
                 token_statuses[nid] = used
 

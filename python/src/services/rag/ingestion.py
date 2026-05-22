@@ -80,19 +80,27 @@ class DocumentLoader:
                         source=source, industry=industry, doc_type="competitor_profile",
                     ))
         elif category == "rubrics":
-            # 评分标准：每个维度成一个文档
+            # 评分锚定标准 → L3 方法论层
             for dim in data.get("dimensions", []):
                 documents.append(self._make_doc(
                     json.dumps(dim, ensure_ascii=False),
-                    source=source, industry=industry, doc_type="scoring_rubric",
+                    source=source, industry=industry, doc_type="methodology", layer="L3",
                 ))
         elif category == "terms":
-            for term in data.get("terms", []):
+            # 术语表 → L4 报告生成层（兼容 "terms" 和 "glossary" 两种 key）
+            term_list = data.get("terms") or data.get("glossary") or []
+            for term in term_list:
                 documents.append(self._make_doc(
                     json.dumps(term, ensure_ascii=False),
-                    source=source, industry="电商通用", doc_type="glossary_term",
+                    source=source, industry="电商通用", doc_type="glossary", layer="L4",
                 ))
-        elif category in ("tactics", "templates", "schemas", "demo"):
+        elif category in ("tactics", "templates", "schemas"):
+            # 战术卡/SWOT/波特五力/对比维度 → L3 方法论层
+            documents.append(self._make_doc(
+                json.dumps(data, ensure_ascii=False),
+                source=source, industry=industry or "电商通用", doc_type="methodology", layer="L3",
+            ))
+        elif category == "demo":
             documents.append(self._make_doc(
                 json.dumps(data, ensure_ascii=False),
                 source=source, industry=industry or "电商通用", doc_type=category,
@@ -160,15 +168,19 @@ class DocumentLoader:
 
     @staticmethod
     def _make_doc(content: str, source: str = "", industry: str = "",
-                  doc_type: str = "general", competitor: str = "") -> dict:
+                  doc_type: str = "general", competitor: str = "",
+                  layer: str = "") -> dict:
+        meta: dict[str, str] = {
+            "source": source,
+            "industry": industry,
+            "type": doc_type,
+            "competitor": competitor,
+        }
+        if layer:
+            meta["layer"] = layer
         return {
             "content": content[:10000],
-            "metadata": {
-                "source": source,
-                "industry": industry,
-                "type": doc_type,
-                "competitor": competitor,
-            },
+            "metadata": meta,
         }
 
     @staticmethod

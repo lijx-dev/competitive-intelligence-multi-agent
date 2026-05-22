@@ -252,6 +252,10 @@ class TokenManager:
     # 内部
     # ------------------------------------------------------------------
 
+    def get_used(self, agent_name: str) -> dict:
+        """公共接口：返回指定 Agent 的累计 Token 消耗。"""
+        return self._get_used(agent_name)
+
     def _get_used(self, agent_name: str) -> dict:
         """获取指定 Agent 的累计 Token 消耗"""
         input_total = sum(

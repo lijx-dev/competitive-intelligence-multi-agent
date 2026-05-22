@@ -4,7 +4,9 @@ import requests
 import json
 from datetime import datetime
 from docx import Document
-from docx.shared import Inches
+from docx.shared import Inches, Pt, Cm, RGBColor
+from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.oxml.ns import qn
 import io
 
 
@@ -147,72 +149,283 @@ def get_competitor_list():
 # 生成Word竞品分析报告
 def generate_word_report(competitor_name, analysis_result, quality_score):
     doc = Document()
-    # 标题
-    doc.add_heading(f"{competitor_name} 竞品分析报告", 0)
-    doc.add_paragraph(f"生成时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    doc.add_paragraph(f"分析质量评分：{quality_score}/10")
+
+    # ── 页面设置 ──
+    section = doc.sections[0]
+    section.top_margin = Cm(2.5)
+    section.bottom_margin = Cm(2.0)
+
+    # ── 页眉 ──
+    header = section.header
+    header.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.RIGHT
+    run = header.paragraphs[0].add_run("多Agent竞品情报分析系统")
+    run.font.size = Pt(8)
+    run.font.color.rgb = RGBColor(128, 128, 128)
+
+    # ── 页脚（日期 + 页码） ──
+    footer = section.footer
+    footer.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
+    run = footer.paragraphs[0].add_run(
+        f"{datetime.now().strftime('%Y-%m-%d')}   |   第 PAGE 页"
+    )
+    run.font.size = Pt(8)
+    run.font.color.rgb = RGBColor(128, 128, 128)
+
+    # ── 封面 ──
+    title = doc.add_heading(f"{competitor_name} 竞品分析报告", 0)
+    title.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    meta = doc.add_paragraph()
+    meta.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    meta.add_run(f"生成时间：{datetime.now().strftime('%Y-%m-%d %H:%M')}\n").font.size = Pt(11)
+    meta.add_run(f"分析质量评分：{quality_score}/10").font.size = Pt(11)
+
+    star_count = int(min(quality_score, 10) // 2)
+    stars = doc.add_paragraph()
+    stars.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    run = stars.add_run("★" * star_count + "☆" * (5 - star_count))
+    run.font.size = Pt(20)
+    run.font.color.rgb = RGBColor(245, 158, 11)
+
     doc.add_page_break()
 
-    # 1. 竞品对比矩阵
+    # ═══════════════════════════════════════════════════════
+    # 1. 竞品对比矩阵（表格）
+    # ═══════════════════════════════════════════════════════
     doc.add_heading("一、竞品对比矩阵", level=1)
-    if analysis_result.get("comparison_matrix"):
-        matrix = analysis_result["comparison_matrix"]
-        for dim in matrix["dimensions"]:
-            doc.add_heading(dim["dimension"], level=2)
-            doc.add_paragraph(f"我方评分：{dim['our_score']}/10 | 竞品评分：{dim['competitor_score']}/10")
-            doc.add_paragraph(f"分析说明：{dim['notes']}")
-        doc.add_heading("整体评估", level=2)
-        doc.add_paragraph(matrix["overall_assessment"])
+    matrix = analysis_result.get("comparison_matrix")
+    if matrix and isinstance(matrix, dict):
+        dims = matrix.get("dimensions", [])
+        if dims:
+            table = doc.add_table(rows=1 + len(dims), cols=4, style="Table Grid")
+            table.alignment = 1  # center
+            # 表头
+            hdr = table.rows[0].cells
+            headers = ["对比维度", "我方评分", "竞品评分", "分析说明"]
+            widths = [Cm(3.5), Cm(2), Cm(2), Cm(8.5)]
+            for i, (text, w) in enumerate(zip(headers, widths)):
+                hdr[i].text = text
+                hdr[i].width = w
+                for p in hdr[i].paragraphs:
+                    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                    for r in p.runs:
+                        r.font.bold = True
+                        r.font.size = Pt(9)
+                        r.font.color.rgb = RGBColor(255, 255, 255)
+                # 蓝色表头背景
+                shading = hdr[i]._element.get_or_add_tcPr()
+                shading_elm = shading.makeelement(qn("w:shd"), {
+                    qn("w:fill"): "2563EB",
+                    qn("w:val"): "clear",
+                })
+                shading.append(shading_elm)
+
+            for row_idx, dim in enumerate(dims):
+                cells = table.rows[row_idx + 1].cells
+                cells[0].text = str(dim.get("dimension", ""))
+                cells[1].text = str(dim.get("our_score", "-"))
+                cells[2].text = str(dim.get("competitor_score", "-"))
+                cells[3].text = str(dim.get("notes", ""))[:300]
+                # 交替行背景
+                if row_idx % 2 == 0:
+                    for c in cells:
+                        shading = c._element.get_or_add_tcPr()
+                        sh = shading.makeelement(qn("w:shd"), {
+                            qn("w:fill"): "F3F4F6", qn("w:val"): "clear",
+                        })
+                        shading.append(sh)
+
+            doc.add_paragraph("")  # spacing
+            overall = matrix.get("overall_assessment", "")
+            if overall:
+                p = doc.add_paragraph()
+                run = p.add_run(f"整体评估：{overall}")
+                run.font.size = Pt(10)
+    else:
+        doc.add_paragraph("暂无对比矩阵数据")
     doc.add_page_break()
 
-    # 2. 销售战术卡
+    # ═══════════════════════════════════════════════════════
+    # 2. 销售战术卡（SWOT 表格）
+    # ═══════════════════════════════════════════════════════
     doc.add_heading("二、销售战术卡", level=1)
-    if analysis_result.get("battlecard"):
-        card = analysis_result["battlecard"]
-        doc.add_heading("我方优势", level=2)
-        for item in card["our_strengths"]:
-            doc.add_paragraph(f"- {item}", style="List Bullet")
-        doc.add_heading("我方劣势", level=2)
-        for item in card["our_weaknesses"]:
-            doc.add_paragraph(f"- {item}", style="List Bullet")
-        doc.add_heading("竞品优势", level=2)
-        for item in card["competitor_strengths"]:
-            doc.add_paragraph(f"- {item}", style="List Bullet")
-        doc.add_heading("竞品劣势", level=2)
-        for item in card["competitor_weaknesses"]:
-            doc.add_paragraph(f"- {item}", style="List Bullet")
-        doc.add_heading("核心差异化", level=2)
-        for item in card["key_differentiators"]:
-            doc.add_paragraph(f"- {item}", style="List Bullet")
-        doc.add_heading("异议处理话术", level=2)
-        for question, answer in card["objection_handling"].items():
-            doc.add_paragraph(f"Q: {question}", style="List Bullet")
-            doc.add_paragraph(f"A: {answer}")
-        doc.add_heading("电梯Pitch", level=2)
-        doc.add_paragraph(card["elevator_pitch"])
+    card = analysis_result.get("battlecard")
+    if card and isinstance(card, dict):
+        # SWOT 四象限表格（2x2）
+        swot_table = doc.add_table(rows=2, cols=2, style="Table Grid")
+        swot_table.alignment = 1
+
+        quadrants = [
+            ("✅ 我方优势", card.get("our_strengths", []), "10B981"),
+            ("⚠️ 我方劣势", card.get("our_weaknesses", []), "F59E0B"),
+            ("📈 竞品优势", card.get("competitor_strengths", []), "3B82F6"),
+            ("❌ 竞品劣势", card.get("competitor_weaknesses", []), "EF4444"),
+        ]
+
+        for idx, (title, items, color) in enumerate(quadrants):
+            cell = swot_table.rows[idx // 2].cells[idx % 2]
+            # 标题
+            p = cell.paragraphs[0]
+            run = p.add_run(title)
+            run.font.bold = True
+            run.font.size = Pt(10)
+            # 内容
+            for item in items[:5]:
+                p = cell.add_paragraph(f"• {str(item)[:200]}", style="List Bullet")
+                for r in p.runs:
+                    r.font.size = Pt(9)
+
+        doc.add_paragraph("")
+
+        # 核心差异化
+        diff = card.get("key_differentiators", [])
+        if diff:
+            doc.add_heading("核心差异化", level=2)
+            for item in diff:
+                doc.add_paragraph(str(item)[:300], style="List Bullet")
+
+        # 异议处理
+        objections = card.get("objection_handling", {})
+        if objections:
+            doc.add_heading("异议处理话术", level=2)
+            for q, a in objections.items():
+                p = doc.add_paragraph()
+                run = p.add_run(f"Q: {q}")
+                run.font.bold = True
+                run.font.size = Pt(10)
+                doc.add_paragraph(f"A: {str(a)[:500]}")
+
+        # 电梯Pitch
+        pitch = card.get("elevator_pitch", "")
+        if pitch:
+            doc.add_heading("电梯 Pitch", level=2)
+            p = doc.add_paragraph()
+            run = p.add_run(str(pitch)[:500])
+            run.font.italic = True
+            run.font.size = Pt(10)
+    else:
+        doc.add_paragraph("暂无战术卡数据")
     doc.add_page_break()
 
-    # 3. 研究洞察
-    doc.add_heading("三、研究洞察", level=1)
-    if analysis_result.get("research_results"):
-        for insight in analysis_result["research_results"]:
-            doc.add_heading(insight["topic"], level=2)
-            doc.add_paragraph(insight["summary"])
-            doc.add_heading("核心发现", level=3)
-            for finding in insight["key_findings"]:
-                doc.add_paragraph(f"- {finding}", style="List Bullet")
+    # ═══════════════════════════════════════════════════════
+    # 3. 质量审查报告
+    # ═══════════════════════════════════════════════════════
+    doc.add_heading("三、质量审查报告", level=1)
+    review = analysis_result.get("review_feedback")
+    if review and isinstance(review, dict):
+        scores = [
+            ("综合评分", review.get("overall_score", 0)),
+            ("准确度", review.get("accuracy_score", 0)),
+            ("完整度", review.get("completeness_score", 0)),
+            ("可操作性", review.get("actionability_score", 0)),
+        ]
+        for label, score in scores:
+            p = doc.add_paragraph()
+            run = p.add_run(f"{label}：")
+            run.font.bold = True
+            stars_filled = int(min(float(score), 10) // 2)
+            run2 = p.add_run("★" * stars_filled + "☆" * (5 - stars_filled) + f"  {score}/10")
+            run2.font.size = Pt(12)
+            run2.font.color.rgb = RGBColor(245, 158, 11)
+
+        if review.get("approved"):
+            doc.add_paragraph("✅ 审查通过 — 报告质量达标")
+        issues = review.get("issues", [])
+        if issues:
+            doc.add_heading("发现问题", level=2)
+            for iss in issues:
+                sev = iss.get("severity", "?")
+                desc = iss.get("description", str(iss)[:200])
+                doc.add_paragraph(f"[{sev}] {desc}", style="List Bullet")
+    else:
+        p = doc.add_paragraph(f"质量评分：{quality_score}/10")
+        run = p.runs[0]
+        run.font.size = Pt(14)
+        run.font.bold = True
     doc.add_page_break()
 
-    # 4. 变更监控
-    doc.add_heading("四、变更监控", level=1)
-    if analysis_result.get("changes_detected"):
-        for change in analysis_result["changes_detected"]:
-            doc.add_paragraph(f"[{change['severity']}] {change['title']}")
-            doc.add_paragraph(change["summary"])
+    # ═══════════════════════════════════════════════════════
+    # 4. 引用溯源报告
+    # ═══════════════════════════════════════════════════════
+    doc.add_heading("四、引用溯源报告", level=1)
+    cit = analysis_result.get("citation_report")
+    if cit and isinstance(cit, dict):
+        # 统计表格
+        stats_table = doc.add_table(rows=2, cols=4, style="Table Grid")
+        stats_table.alignment = 1
+        stats_data = [
+            ("总引用数", "已验证", "失效链接", "可信度"),
+            (
+                str(cit.get("total_sources", 0)),
+                str(cit.get("verified_sources", 0)),
+                str(cit.get("broken_links", 0)),
+                f"{cit.get('overall_reliability_score', 0)*100:.0f}%",
+            ),
+        ]
+        for row_idx, row_data in enumerate(stats_data):
+            for col_idx, val in enumerate(row_data):
+                cell = stats_table.rows[row_idx].cells[col_idx]
+                cell.text = val
+                for p in cell.paragraphs:
+                    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                    if row_idx == 0:
+                        for r in p.runs:
+                            r.font.bold = True
+                            r.font.size = Pt(9)
+
+        missing = cit.get("missing_citations", [])
+        if missing:
+            doc.add_heading("缺失引用的结论", level=2)
+            for m in missing[:20]:
+                doc.add_paragraph(str(m)[:200], style="List Bullet")
+    else:
+        doc.add_paragraph("暂无引用溯源数据")
+
+    # ═══════════════════════════════════════════════════════
+    # 5. 研究洞察
+    # ═══════════════════════════════════════════════════════
+    doc.add_heading("五、研究洞察", level=1)
+    research = analysis_result.get("research_results")
+    if research:
+        for i, insight in enumerate(research):
+            if not isinstance(insight, dict):
+                continue
+            topic = insight.get("topic", f"洞察 #{i+1}")
+            doc.add_heading(topic, level=2)
+            summary = insight.get("summary", "")
+            if summary:
+                p = doc.add_paragraph()
+                p.paragraph_format.first_line_indent = Cm(0.7)
+                p.add_run(str(summary)[:1000])
+            findings = insight.get("key_findings", [])
+            if findings:
+                doc.add_heading("核心发现", level=3)
+                for f in findings:
+                    doc.add_paragraph(str(f)[:300], style="List Bullet")
+    else:
+        doc.add_paragraph("暂无研究洞察数据")
+
+    # ═══════════════════════════════════════════════════════
+    # 6. 变更监控
+    # ═══════════════════════════════════════════════════════
+    doc.add_heading("六、变更监控", level=1)
+    changes = analysis_result.get("changes_detected")
+    if changes:
+        for change in changes:
+            if not isinstance(change, dict):
+                continue
+            severity = change.get("severity", "LOW")
+            sev_icon = {"HIGH": "🔴", "MEDIUM": "🟡", "LOW": "🟢"}.get(severity, "⚪")
+            title_text = change.get("title", "")
+            p = doc.add_paragraph()
+            run = p.add_run(f"{sev_icon} [{severity}] {title_text}")
+            run.font.bold = True
+            summary = change.get("summary", "")
+            if summary:
+                doc.add_paragraph(str(summary)[:500])
     else:
         doc.add_paragraph("本次监控未检测到竞品变更")
 
-    # 保存到内存
+    # ── 保存到内存 ──
     buffer = io.BytesIO()
     doc.save(buffer)
     buffer.seek(0)
@@ -224,6 +437,108 @@ if is_mock:
         "🎭 **Demo 模式已启用** — 所有分析使用预生成数据，3秒内出完整结果。"
         "关闭侧边栏「Mock 模式」开关恢复真实 LLM 调用。"
     )
+
+# ── DAG 可视化引擎 ──
+
+DAG_NODE_NAMES = [
+    "monitor", "alert", "research", "fact_check",
+    "compare", "battlecard", "reviewer", "targeted_fix",
+    "citation", "feishu_push",
+]
+
+DAG_POSITIONS = {
+    "monitor":       (50, 10),
+    "alert":         (78, 24),
+    "research":      (22, 24),
+    "fact_check":    (50, 42),
+    "compare":       (50, 58),
+    "battlecard":    (50, 74),
+    "reviewer":      (50, 90),
+    "targeted_fix":  (30, 106),
+    "citation":      (70, 106),
+    "feishu_push":   (50, 120),
+}
+
+DAG_EDGES = [
+    ("monitor", "alert"), ("monitor", "research"),
+    ("research", "fact_check"), ("fact_check", "compare"),
+    ("compare", "battlecard"), ("battlecard", "reviewer"),
+    ("reviewer", "targeted_fix"), ("reviewer", "citation"),
+    ("targeted_fix", "reviewer"), ("citation", "feishu_push"),
+]
+
+DAG_NODE_LABELS = {
+    "monitor": "Monitor",
+    "alert": "Alert",
+    "research": "Research",
+    "fact_check": "FactCheck",
+    "compare": "Compare",
+    "battlecard": "Battlecard",
+    "reviewer": "Reviewer",
+    "targeted_fix": "Fix",
+    "citation": "Citation",
+    "feishu_push": "Feishu",
+}
+
+
+def render_dag_svg(status_map: dict) -> str:
+    """生成内嵌 DAG SVG 的 HTML，动态着色节点。
+
+    节点状态颜色：灰色(idle) → 蓝色(running) → 绿色(completed) → 红色(failed)
+    """
+    color_map = {
+        "idle": "#374151",      # 灰
+        "running": "#3B82F6",   # 蓝
+        "completed": "#10B981", # 绿
+        "failed": "#EF4444",    # 红
+    }
+
+    node_circles = ""
+    node_labels = ""
+    edge_lines = ""
+
+    for node_id, (x, y) in DAG_POSITIONS.items():
+        status = status_map.get(node_id, "idle")
+        color = color_map.get(status, "#374151")
+        pulse = ""
+        if status == "running":
+            pulse = '<animate attributeName="opacity" values="1;0.4;1" dur="1s" repeatCount="indefinite"/>'
+        node_circles += (
+            f'<circle cx="{x}" cy="{y}" r="10" fill="{color}" stroke="#6B7280" stroke-width="1.5">'
+            f'{pulse}</circle>'
+        )
+        label = DAG_NODE_LABELS.get(node_id, node_id)
+        node_labels += (
+            f'<text x="{x}" y="{y + 20}" text-anchor="middle" font-size="7" '
+            f'fill="#9CA3AF" font-family="monospace">{label}</text>'
+        )
+
+    for src, dst in DAG_EDGES:
+        sx, sy = DAG_POSITIONS[src]
+        dx, dy = DAG_POSITIONS[dst]
+        edge_lines += (
+            f'<line x1="{sx}" y1="{sy + 10}" x2="{dx}" y2="{dy - 10}" '
+            f'stroke="#4B5563" stroke-width="1.5" marker-end="url(#arrow)"/>'
+        )
+
+    return f"""
+    <svg width="100%" height="160" viewBox="0 0 100 145"
+         xmlns="http://www.w3.org/2000/svg"
+         style="background:#1F2937;border-radius:8px;max-width:320px;margin:0 auto;display:block;">
+        <defs>
+            <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5"
+                    markerWidth="5" markerHeight="5" orient="auto">
+                <path d="M0,0 L10,5 L0,10 Z" fill="#6B7280"/>
+            </marker>
+        </defs>
+        <text x="50" y="6" text-anchor="middle" font-size="8" fill="#6B7280" font-family="monospace">
+            DAG Execution
+        </text>
+        {edge_lines}
+        {node_circles}
+        {node_labels}
+    </svg>
+    """
 
 # ------------------------------
 # 页面1：竞品分析工作台（核心）
@@ -283,6 +598,14 @@ if page == "竞品分析工作台":
             # 进度展示区域
             st.divider()
             st.subheader("📡 实时执行进度")
+
+            # ── DAG 实时可视化 ──
+            dag_status = {node: "idle" for node in DAG_NODE_NAMES}
+            dag_placeholder = st.empty()
+            dag_placeholder.markdown(
+                render_dag_svg(dag_status), unsafe_allow_html=True
+            )
+
             progress_container = st.container()
             result_container = st.container()
 
@@ -316,12 +639,19 @@ if page == "竞品分析工作台":
                 # 实时处理事件（使用自定义 SSE 解析器）
                 for node_name, node_data in parse_sse_stream(response):
                     if node_name == "error":
+                        dag_status[node_name] = "failed"
+                        dag_placeholder.markdown(render_dag_svg(dag_status), unsafe_allow_html=True)
                         progress_container.error(f"❌ 执行出错：{node_data.get('error', '未知错误')}")
                         has_error = True
                         break
 
                     node_results[node_name] = node_data
                     icon = NODE_COLORS.get(node_name, "✅")
+
+                    # ★ DAG 实时更新：节点完成 → 绿色
+                    if node_name in dag_status:
+                        dag_status[node_name] = "completed"
+                        dag_placeholder.markdown(render_dag_svg(dag_status), unsafe_allow_html=True)
 
                     with progress_container:
                         with st.expander(f"{icon} {node_name} 节点执行完成", expanded=True):
