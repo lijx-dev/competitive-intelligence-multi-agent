@@ -44,7 +44,7 @@ class DoubaoLLM:
 
     def __init__(
         self,
-        model_id: str = "doubao-seed-1-8-251228",
+        model_id: str = "doubao-seed-2.0-lite",  # 官方提供模型
         api_key: str = "",
         base_url: str = "https://ark.cn-beijing.volces.com/api/v3",
         context_editing: dict | None = None,

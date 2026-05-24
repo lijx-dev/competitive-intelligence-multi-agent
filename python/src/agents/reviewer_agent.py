@@ -93,10 +93,25 @@ class ReviewerAgent:
     async def __call__(self, state: dict[str, Any]) -> dict[str, Any]:
         feedback = await self.review(state)
         reflexion_count = state.get("reflexion_count", 0) + 1
+
+        # 更新反馈闭环效果追踪：如果是修复后的重新review，填入score_after
+        fix_history = state.get("fix_history", [])
+        if fix_history and fix_history[-1].get("score_after", 0) == 0.0:
+            # 这是修复后的重新review，更新最后一轮FixEffectiveness
+            last_fix = fix_history[-1]
+            last_fix["score_after"] = feedback.overall_score
+            last_fix["issues_count_after"] = len(feedback.issues)
+            last_fix["improvement"] = feedback.overall_score - last_fix.get("score_before", 0.0)
+            logger.info(
+                f"Fix round {last_fix.get('round')}: {last_fix['score_before']:.1f} → "
+                f"{feedback.overall_score:.1f} (Δ{last_fix['improvement']:+.1f})"
+            )
+
         return {
             "review_feedback": feedback.model_dump(),
             "quality_score": feedback.overall_score,
             "reflexion_count": reflexion_count,
+            "fix_history": fix_history,
         }
 
     # ------------------------------------------------------------------

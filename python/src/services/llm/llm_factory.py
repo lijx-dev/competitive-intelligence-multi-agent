@@ -33,7 +33,7 @@ def _get_doubao_llm(agent_name: str = "default") -> Any:
     from .doubao_client import DoubaoLLM
 
     return DoubaoLLM(
-        model_id=getattr(cfg, "doubao_model_id", None) or cfg.model or "doubao-seed-1-8-251228",
+        model_id=getattr(cfg, "doubao_model_id", None) or cfg.model or "doubao-seed-2.0-lite",  # 官方提供模型
         api_key=getattr(cfg, "ark_api_key", None) or cfg.api_key or "",
         temperature=cfg.temperature,
         max_tokens=cfg.max_tokens,

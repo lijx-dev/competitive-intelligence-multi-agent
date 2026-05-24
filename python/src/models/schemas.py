@@ -197,6 +197,18 @@ class ReviewFeedback(BaseSchema):
     revision_instructions: str = ""
 
 
+class FixEffectiveness(BaseSchema):
+    """反馈闭环：追踪每次 TargetedFix 的修复效果"""
+    round: int = Field(description="修复轮次", ge=1)
+    score_before: float = Field(description="修复前 Reviewer 评分", ge=0.0, le=10.0)
+    score_after: float = Field(description="修复后 Reviewer 评分", ge=0.0, le=10.0)
+    issues_count_before: int = Field(description="修复前问题数量", ge=0)
+    issues_count_after: int = Field(description="修复后问题数量", ge=0)
+    improvement: float = Field(description="score 提升值（负数为恶化）")
+    fixed_fields: list[str] = Field(default_factory=list, description="本次修复的字段路径")
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+
+
 class CitationReport(BaseSchema):
     """Citation Agent 引用溯源报告"""
     total_sources: int = 0

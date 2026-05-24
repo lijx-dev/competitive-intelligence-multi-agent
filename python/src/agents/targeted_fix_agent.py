@@ -14,6 +14,7 @@ from typing import Any
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from ..services.llm import LLMFactory
+from ..models.schemas import FixEffectiveness
 
 logger = logging.getLogger(__name__)
 
@@ -87,9 +88,33 @@ class TargetedFixAgent:
         feedback = state.get("review_feedback", {})
         fix_count = state.get("targeted_fix_count", 0) + 1
 
+        # 记录修复前状态（用于反馈闭环效果追踪）
+        score_before = state.get("quality_score", 0.0)
+        issues_before = len(feedback.get("issues", []))
+
         fixed = await self.fix(battlecard, comparison, feedback)
-        logger.info(f"TargetedFix attempt {fix_count} completed")
-        return {"battlecard": fixed, "targeted_fix_count": fix_count}
+        logger.info(f"TargetedFix attempt {fix_count} completed (score_before={score_before:.1f}, issues={issues_before})")
+
+        # 创建 FixEffectiveness 记录（score_after 由下一轮 Reviewer 填入）
+        fix_record = FixEffectiveness(
+            round=fix_count,
+            score_before=score_before,
+            score_after=0.0,  # 占位，由下一轮 Reviewer 更新
+            issues_count_before=issues_before,
+            issues_count_after=0,  # 占位
+            improvement=0.0,  # 占位
+            fixed_fields=[iss.get("target", "") for iss in feedback.get("issues", [])],
+        )
+
+        # 累积到 fix_history
+        fix_history = state.get("fix_history", [])
+        fix_history.append(fix_record.model_dump())
+
+        return {
+            "battlecard": fixed,
+            "targeted_fix_count": fix_count,
+            "fix_history": fix_history,
+        }
 
     # ------------------------------------------------------------------
     # Parse

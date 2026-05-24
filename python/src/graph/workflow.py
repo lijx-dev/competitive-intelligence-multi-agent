@@ -143,7 +143,7 @@ alert_agent = AlertAgent()
 # ---------------------------------------------------------------------------
 
 def _after_review(state: dict[str, Any]) -> str:
-    """Reviewer → TargetedFix（评分不足）或 Citation（评分达标）"""
+    """Reviewer → TargetedFix（评分不足且未达最大重试）或 Citation（评分达标或部分完成）"""
     score = state.get("quality_score", 0)
     count = state.get("targeted_fix_count", 0)
     max_fix = get_effective_max_reflexion_retries()
@@ -151,6 +151,13 @@ def _after_review(state: dict[str, Any]) -> str:
     if score < 7.0 and count < max_fix:
         logger.info(f"Review score {score:.1f} < 7.0 → TargetedFix (attempt {count+1}/{max_fix})")
         return "targeted_fix"
+    
+    # 3次修复后仍<7：标记"部分完成"继续流程，不阻塞
+    if score < 7.0 and count >= max_fix:
+        logger.warning(f"Review score {score:.1f} after {count} fixes → partial completion, continuing")
+        state["battlecard_partial_completion"] = True
+        state["battlecard_partial_reason"] = f"{count}次修复后score={score:.1f}仍<7.0"
+    
     logger.info(f"Review score {score:.1f} → Citation")
     return "citation"
 

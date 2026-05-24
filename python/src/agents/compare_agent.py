@@ -16,6 +16,28 @@ from ..models.schemas import ComparisonMatrix, DimensionScore
 
 logger = logging.getLogger(__name__)
 
+# ── 03 方案模块接入（可选依赖，缺失时自动跳过增强） ──
+try:
+    from ..services.weight_fusion_engine import (
+        FusionEngine, DynamicWeightEngine,
+        Evidence, DataSource, DataTier, AHPCalculator
+    )
+    _WEIGHT_FUSION_AVAILABLE = True
+except ImportError as _e:
+    _WEIGHT_FUSION_AVAILABLE = False
+    logger.debug("weight_fusion_engine 未就绪: %s", _e)
+
+try:
+    from ..services.competitive_intelligence_framework import (
+        ReputationAssessmentFramework,
+        DataAccessibilityMatrix,
+        SurrogateMetricsEngine,
+    )
+    _CI_FRAMEWORK_AVAILABLE = True
+except ImportError as _e:
+    _CI_FRAMEWORK_AVAILABLE = False
+    logger.debug("competitive_intelligence_framework 未就绪: %s", _e)
+
 SYSTEM_PROMPT = """\
 You are a Competitive Intelligence Comparison Agent.
 Given OUR PRODUCT's real information and RESEARCH INSIGHTS about a competitor,
@@ -102,6 +124,90 @@ class CompareAgent:
         """统一 LLM 工厂 — 支持豆包/通义千问动态切换"""
         return LLMFactory.get_llm("compare")
 
+    # ------------------------------------------------------------------
+    # 03 方案数据增强 — 多源融合 + 情感分析 + 冲突检测
+    # ------------------------------------------------------------------
+
+    async def _enrich_research_data(
+        self,
+        research_results: list[dict],
+        competitor: str,
+    ) -> str:
+        """使用 weight_fusion_engine + competitive_intelligence_framework
+        对研究数据进行增强，返回供 LLM 参考的文本片段。
+        所有步骤失败安全（try-except），不影响主流程。"""
+        parts: list[str] = []
+
+        # 1. 口碑情感分析（ReputationAssessmentFramework）
+        if _CI_FRAMEWORK_AVAILABLE:
+            try:
+                reviews = []
+                for r in research_results:
+                    topic = (r.get("topic") or "").lower()
+                    if any(k in topic for k in ("sentiment", "review", "口碑", "用户反馈", "评价", "customer")):
+                        text = r.get("summary", "")
+                        if text:
+                            reviews.append({
+                                "text": text,
+                                "platform": "research",
+                                "rating": min(max((r.get("confidence", 0.5) * 5), 1), 5),
+                            })
+                if reviews:
+                    rep = ReputationAssessmentFramework(use_transformers=False)
+                    sentiment = rep.analyze_batch_reviews(reviews)
+                    pos = sentiment.get("positive_ratio", 0)
+                    neg = sentiment.get("negative_ratio", 0)
+                    nps = sentiment.get("nps_estimate", "N/A")
+                    parts.append(
+                        f"=== 用户口碑情感分析（基于 {sentiment.get('sample_size', 0)} 条研究洞察）===\n"
+                        f"正面比例: {pos*100:.1f}% | 负面比例: {neg*100:.1f}% | "
+                        f"NPS估算: {nps}\n"
+                        f"口碑指数: {sentiment.get('reputation_index', 'N/A')}\n"
+                    )
+            except Exception as e:
+                logger.debug("情感分析增强跳过: %s", e)
+
+            # 2. 数据可达性评估（DataAccessibilityMatrix）
+            try:
+                matrix = DataAccessibilityMatrix()
+                summary = matrix.summary()
+                parts.append(
+                    f"=== 数据可达性评估 ===\n"
+                    f"A类(直接获取): {summary.get('A', 0)} 项 | "
+                    f"B类(间接推断): {summary.get('B', 0)} 项 | "
+                    f"C类(模型预测): {summary.get('C', 0)} 项 | "
+                    f"D类(推测性): {summary.get('D', 0)} 项\n"
+                )
+            except Exception as e:
+                logger.debug("数据可达性评估跳过: %s", e)
+
+        # 3. 多源冲突检测（weight_fusion_engine 简化版）
+        if _WEIGHT_FUSION_AVAILABLE:
+            try:
+                topic_groups: dict[str, list[dict]] = {}
+                for r in research_results:
+                    topic = r.get("topic", "unknown")
+                    topic_groups.setdefault(topic, []).append(r)
+
+                conflicts: list[str] = []
+                for topic, items in topic_groups.items():
+                    if len(items) >= 2:
+                        confs = [i.get("confidence", 0.5) for i in items]
+                        if max(confs) - min(confs) > 0.3:
+                            conflicts.append(
+                                f"  - {topic}: 来源间置信度差异 {min(confs):.2f} ~ {max(confs):.2f}"
+                            )
+                if conflicts:
+                    parts.append(
+                        "=== 多源信息冲突提示 ===\n"
+                        "以下维度存在来源间显著差异，评分时请降低置信度:\n"
+                        + "\n".join(conflicts) + "\n"
+                    )
+            except Exception as e:
+                logger.debug("冲突检测增强跳过: %s", e)
+
+        return "\n".join(parts) if parts else ""
+
     async def compare(
         self,
         competitor: str,
@@ -109,6 +215,9 @@ class CompareAgent:
         our_product_info: dict | None = None,
         fact_check_result: dict | None = None,
     ) -> ComparisonMatrix:
+        # ★ 03 方案数据增强
+        enrichment_text = await self._enrich_research_data(research_results, competitor)
+
         our_info_text = _format_product_info(our_product_info or {})
         research_text = json.dumps(
             [r.model_dump() if hasattr(r, 'model_dump') else r for r in research_results],
@@ -147,15 +256,21 @@ class CompareAgent:
                     "Please clearly note this in the overall_assessment."
                 )
 
+        # 组装增强上下文
+        enrichment_block = f"\n\n=== DATA ENRICHMENT (03方案多源融合分析) ===\n{enrichment_text}\n" if enrichment_text else ""
+
         user_msg = (
             f"=== OUR PRODUCT INFO (use this for our_score) ===\n"
             f"{our_info_text}\n\n"
             f"=== COMPETITOR: {competitor} ===\n\n"
             f"=== RESEARCH INSIGHTS (use this for competitor_score) ===\n"
             f"{research_text}"
-            f"{fc_note}\n\n"
+            f"{fc_note}"
+            f"{enrichment_block}\n\n"
             "Generate a comparison matrix as JSON. Base our_score on the OUR PRODUCT INFO above. "
-            "Base competitor_score on the RESEARCH INSIGHTS above."
+            "Base competitor_score on the RESEARCH INSIGHTS above. "
+            "If DATA ENRICHMENT indicates conflicts or low confidence for a dimension, "
+            "reflect this by lowering the competitor_score and noting the uncertainty."
         )
         # 注入 L3 方法论知识
         from ..services.rag.rag_agent import RAGEnhancedAgent

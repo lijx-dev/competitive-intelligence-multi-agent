@@ -18,3 +18,5 @@ apscheduler>=3.10.0
 structlog>=24.4.0
 tenacity>=9.0.0
 volcengine-python-sdk>=1.0.0
+numpy>=1.26.0
+pandas>=2.0.0

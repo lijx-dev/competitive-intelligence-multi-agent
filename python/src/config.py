@@ -24,14 +24,14 @@ logger = logging.getLogger(__name__)
 class LLMConfig:
     """LLM 配置 — 兼容豆包 / 通义千问双 Provider"""
     provider: str = os.getenv("LLM_PROVIDER", "doubao")                        # doubao / tongyi
-    model: str = os.getenv("LLM_MODEL", os.getenv("DOUBAO_MODEL_ID", "doubao-seed-1-8-251228"))
+    model: str = os.getenv("LLM_MODEL", os.getenv("DOUBAO_MODEL_ID", "doubao-seed-2.0-lite"))  # 官方提供模型
     api_key: str = os.getenv("DASHSCOPE_API_KEY", "")                           # 通义千问（回退）
     temperature: float = float(os.getenv("LLM_TEMPERATURE", "0.7"))
     max_tokens: int = int(os.getenv("LLM_MAX_TOKENS", "4096"))
 
     # 豆包特有字段
     ark_api_key: str = os.getenv("ARK_API_KEY", "")                             # 火山引擎 Ark API Key
-    doubao_model_id: str = os.getenv("DOUBAO_MODEL_ID", "doubao-seed-1-8-251228")
+    doubao_model_id: str = os.getenv("DOUBAO_MODEL_ID", "doubao-seed-2.0-lite")  # 官方提供模型
 
 
 @dataclass(frozen=True)
