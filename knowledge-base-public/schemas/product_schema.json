@@ -1,0 +1,303 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "EcommerceCompetitorKnowledgeBase",
+  "description": "电商竞品知识库Schema - 用于RAG系统L2行业知识层",
+  "version": "1.0.0",
+  "definitions": {
+    "CompanyProfile": {
+      "type": "object",
+      "description": "企业基本面",
+      "properties": {
+        "company_id": { "type": "string", "description": "唯一标识符" },
+        "company_name": { "type": "string", "description": "公司/品牌名称" },
+        "company_name_en": { "type": "string" },
+        "parent_company": { "type": "string", "description": "母公司" },
+        "founded_year": { "type": "integer" },
+        "headquarters": { "type": "string" },
+        "employees": { "type": "string", "description": "员工规模范围" },
+        "listing_status": {
+          "type": "string",
+          "enum": [ "上市", "未上市", "子公司", "已退市" ]
+        },
+        "stock_tickers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "exchange": { "type": "string", "enum": [ "NYSE", "NASDAQ", "HKEX", "SSE", "SZSE", "private"] },
+              "ticker": { "type": "string" }
+            }
+          }
+        },
+        "website": { "type": "string", "format": "uri" },
+        "slogan": { "type": "string", "description": "品牌口号" },
+        "business_model": {
+          "type": "string",
+          "enum": [ "B2C", "C2C", "B2B", "C2M", "O2O", "DTC", "社交电商", "直播电商", "内容电商", "平台型", "自营型", "混合模式" ]
+        },
+        "platform_type": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [ "综合电商", "垂直电商", "社交电商", "直播电商", "跨境电商", "即时零售", "社区团购", "二手电商", "奢侈品电商", "导购平台" ]
+          }
+        }
+      },
+      "required": [ "company_id", "company_name", "business_model" ]
+    },
+    "FinancialMetrics": {
+      "type": "object",
+      "description": "财务与经营指标",
+      "properties": {
+        "reporting_period": { "type": "string", "description": "报告期，如2024-Q3" },
+        "currency": { "type": "string", "default": "CNY" },
+        "gmv": {
+          "type": "object",
+          "properties": {
+            "value": { "type": "number", "description": "GMV数值（亿元）" },
+            "yoy_growth": { "type": "number", "description": "同比增长率" },
+            "source": { "type": "string" }
+          }
+        },
+        "revenue": {
+          "type": "object",
+          "properties": {
+            "value": { "type": "number", "description": "营收（亿元）" },
+            "yoy_growth": { "type": "number" },
+            "source": { "type": "string" }
+          }
+        },
+        "net_income": {
+          "type": "object",
+          "properties": {
+            "value": { "type": "number", "description": "净利润（亿元）" },
+            "margin": { "type": "number", "description": "净利率" }
+          }
+        },
+        "take_rate": {
+          "type": "number",
+          "description": "货币化率（%）",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "active_buyers": {
+          "type": "object",
+          "properties": {
+            "mau": { "type": "number", "description": "月活用户数（万）" },
+            "dau": { "type": "number", "description": "日活用户数（万）" },
+            "annual_active_buyers": { "type": "number", "description": "年活跃买家数（万）" }
+          }
+        },
+        "arpu": {
+          "type": "number",
+          "description": "用户年均消费金额（元）"
+        },
+        "aov": {
+          "type": "number",
+          "description": "客单价（元）"
+        },
+        "order_frequency": {
+          "type": "number",
+          "description": "年均下单次数"
+        },
+        "fulfillment_cost_ratio": {
+          "type": "number",
+          "description": "履约成本占收入比（%）"
+        },
+        "marketing_expense_ratio": {
+          "type": "number",
+          "description": "营销费用率（%）"
+        },
+        "rd_expense_ratio": {
+          "type": "number",
+          "description": "研发费用率（%）"
+        }
+      }
+    },
+    "OperationsMetrics": {
+      "type": "object",
+      "description": "运营指标",
+      "properties": {
+        "merchant_count": {
+          "type": "number",
+          "description": "活跃商家数（万）"
+        },
+        "sku_count": {
+          "type": "string",
+          "description": "商品SKU数量"
+        },
+        "category_coverage": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "覆盖品类"
+        },
+        "delivery_time": {
+          "type": "object",
+          "properties": {
+            "average_hours": { "type": "number" },
+            "same_day_delivery_ratio": { "type": "number", "description": "当日达占比" },
+            "next_day_delivery_ratio": { "type": "number", "description": "次日达占比" }
+          }
+        },
+        "return_rate": {
+          "type": "number",
+          "description": "退货率（%）"
+        },
+        "customer_satisfaction": {
+          "type": "number",
+          "description": "用户满意度评分（1-5）"
+        },
+        "nps_score": {
+          "type": "number",
+          "description": "NPS净推荐值"
+        },
+        "avg_response_time": {
+          "type": "number",
+          "description": "客服平均响应时间（秒）"
+        },
+        "seller_rating": {
+          "type": "number",
+          "description": "商家综合评分"
+        }
+      }
+    },
+    "ProductCapability": {
+      "type": "object",
+      "description": "产品能力矩阵",
+      "properties": {
+        "discovery_methods": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [ "搜索", "推荐", "直播", "短视频", "图文", "社区", "排行榜", "拼团", "秒杀" ]
+          },
+          "description": "商品发现方式"
+        },
+        "payment_methods": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [ "支付宝", "微信支付", "信用卡", "花呗", "白条", "先买后付BNPL", "货到付款", "数字人民币" ]
+          }
+        },
+        "logistics_model": {
+          "type": "string",
+          "enum": [ "自营物流", "第三方物流", "众包配送", "前置仓", "门店自提", "社区团购自提" ]
+        },
+        "content_features": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [ "短视频", "直播", "图文笔记", "买家秀", "达人测评", "AR试妆", "3D展示", "AI导购" ]
+          }
+        },
+        "personalization_level": {
+          "type": "string",
+          "enum": [ "基础", "中级", "高级", "行业领先" ],
+          "description": "个性化推荐水平"
+        },
+        "ai_capabilities": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [ "智能客服", "AI选品", "智能定价", "智能营销", "AI内容生成", "智能仓储", "需求预测", "风控反欺诈" ]
+          }
+        },
+        "social_features": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [ "关注", "粉丝", "社群", "拼团", "分享返利", "种草", "弹幕", "连麦" ]
+          }
+        }
+      }
+    },
+    "CompetitivePositioning": {
+      "type": "object",
+      "description": "竞争定位",
+      "properties": {
+        "target_segments": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "目标客群"
+        },
+        "price_positioning": {
+          "type": "string",
+          "enum": [ "高端", "中高端", "中端", "大众", "极致性价比", "低端", "全价位覆盖" ]
+        },
+        "core_value_proposition": { "type": "string", "description": "核心价值主张" },
+        "differentiation_factors": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "差异化因素"
+        },
+        "competitive_moat": {
+          "type": "string",
+          "enum": [ "网络效应", "规模经济", "品牌溢价", "技术壁垒", "数据壁垒", "供应链壁垒", "内容生态", "用户习惯", "资本壁垒" ]
+        },
+        "market_share": {
+          "type": "object",
+          "properties": {
+            "overall_pct": { "type": "number", "description": "整体市场份额（%）" },
+            "segment_pct": { "type": "number", "description": "细分市场份额（%）" },
+            "year": { "type": "integer" }
+          }
+        }
+      }
+    },
+    "StrategicDynamics": {
+      "type": "object",
+      "description": "战略动态",
+      "properties": {
+        "recent_strategic_moves": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "date": { "type": "string" },
+              "event": { "type": "string" },
+              "impact": { "type": "string", "enum": [ "高", "中", "低" ] },
+              "category": { "type": "string", "enum": [ "产品", "市场", "技术", "组织", "资本", "合规" ] }
+            }
+          }
+        },
+        "investment_focus": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "近期投资重点"
+        },
+        "partnership_ecosystem": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "partner": { "type": "string" },
+              "relationship": { "type": "string", "enum": [ "战略投资", "战略合作", "供应链合作", "技术合作", "渠道合作" ] }
+            }
+          }
+        },
+        "risk_factors": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "风险因素"
+        }
+      }
+    }
+  },
+  "type": "object",
+  "properties": {
+    "competitor_id": { "type": "string" },
+    "profile": { "$ref": "#/definitions/CompanyProfile" },
+    "financials": { "$ref": "#/definitions/FinancialMetrics" },
+    "operations": { "$ref": "#/definitions/OperationsMetrics" },
+    "product_capabilities": { "$ref": "#/definitions/ProductCapability" },
+    "positioning": { "$ref": "#/definitions/CompetitivePositioning" },
+    "strategic_dynamics": { "$ref": "#/definitions/StrategicDynamics" },
+    "last_updated": { "type": "string", "format": "date-time" },
+    "data_sources": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  },
+  "required": [ "competitor_id", "profile" ]
+}

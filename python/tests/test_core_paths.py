@@ -186,11 +186,19 @@ class TestModelConfigUnified:
     """验证所有模型ID统一从配置读取，无硬编码"""
 
     def test_config_default_model(self):
-        """config.py 默认模型必须是官方 Seed-2.0-lite"""
+        """config.py 模型配置必须是官方 Seed-2.0-lite 或其 EP Endpoint ID"""
         from src.config import LLMConfig
         cfg = LLMConfig()
-        assert "seed-2.0" in cfg.model.lower(), f"默认模型不是官方模型: {cfg.model}"
-        assert "seed-2.0" in cfg.doubao_model_id.lower(), f"doubao_model_id不是官方模型: {cfg.doubao_model_id}"
+        is_valid = (
+            "seed-2.0" in cfg.model.lower()
+            or cfg.model.lower().startswith("ep-")
+        )
+        assert is_valid, f"模型不是官方 Seed-2.0-lite 也不是 EP Endpoint: {cfg.model}"
+        is_valid2 = (
+            "seed-2.0" in cfg.doubao_model_id.lower()
+            or cfg.doubao_model_id.lower().startswith("ep-")
+        )
+        assert is_valid2, f"doubao_model_id 不是官方模型也不是 EP Endpoint: {cfg.doubao_model_id}"
 
     def test_no_hardcoded_old_model_in_source(self):
         """源码中不应再出现旧模型ID硬编码"""

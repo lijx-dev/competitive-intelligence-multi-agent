@@ -1,42 +1,141 @@
-# Python
-__pycache__/
-*.py[cod]
-*.egg-info/
-dist/
-build/
-venv/
-.venv/
-*.egg
+# =============================================
+# 竞智CI - GitHub公开仓库 .gitignore
+# 严格区分白名单/黑名单，零敏感泄露，完全干净专业
+# =============================================
 
-# Java
-target/
-*.class
-*.jar
-.settings/
-.classpath
-.project
+# =============================================
+# 🔴 绝对禁止提交 - 环境敏感密钥
+# =============================================
+.env
+*.env
+*.env.local
+*.env.*.local
+python/.env
+.env.*
+!.env.example
 
-# Go
-ci-agent
-*.exe
+# =============================================
+# 🔴 绝对禁止提交 - 本地运行时数据库
+# =============================================
+*.db
+*.db-shm
+*.db-wal
+*.db-journal
+ci_system.db
+events.db
+audit.db
 
-# IDE
-.idea/
+# =============================================
+# 🔴 绝对禁止提交 - 运行时日志文件
+# =============================================
+*.log
+*.out.log
+*.err.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# =============================================
+# 🔴 绝对禁止提交 - Agent/IDE本地私有配置
+# =============================================
+.claude/
+.trae/
 .vscode/
+.idea/
 *.swp
 *.swo
 *~
 .DS_Store
-
-# Environment
-.env
-*.env.local
-
-# Docker
-docker-compose.override.yml
-
-# OS
 Thumbs.db
-"python/.env" 
-".env" 
-ci_system.db 
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# =============================================
+# 🔴 绝对禁止提交 - Node.js/前端构建产物
+# =============================================
+node_modules/
+dist/
+dist-ssr/
+*.local
+.nuxt/
+.nuxt3/
+.output/
+.cache/
+.parcel-cache/
+.next/
+.out/
+Storybook/
+*.tsbuildinfo
+.vite/
+vite.config.*.timestamp*
+yarn.lock.cleaned
+
+# =============================================
+# 🔴 绝对禁止提交 - Go编译产物
+# =============================================
+ci-agent
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+go.work.sum
+
+# =============================================
+# 🔴 绝对禁止提交 - Docker/部署临时文件
+# =============================================
+docker-compose.override.yml
+docker-compose.dev.yml
+*.tmp/
+*.temp/
+*.bak/
+*.backup/
+*.zip
+*.tar.gz
+
+# =============================================
+# 🟡 本地临时历史存档目录 不提交公开仓库
+# =============================================
+前端工程师开发后项目/
+archive-20260525-react-migration-backup/
+front-end-temp/
+tmp/
+temp/
+
+# =============================================
+# 🟡 内部草稿目录（未整理成公开正式版之前不上传）
+# =============================================
+产品经理汇报报告/
+*.md
+!README.md
+!PROJECT_ARCHITECTURE.md
+!knowledge-base-public/**/*.md
+
+# =============================================
+# ✅ 以下是明确保留在Git中的白名单
+# （所有不在此黑名单里的文件自动纳入版本管理）
+# README / 架构文档 / 源代码 / 测试用例 / 正式公开知识库素材
+# =============================================

@@ -1,0 +1,312 @@
+{
+  "title": "电商竞品分析系统 - Demo答辩场景设计",
+  "description": "3个最适合答辩演示的电商竞品对比场景，含完整分析脚本",
+  "version": "1.0.0",
+  "scenarios": [
+    {
+      "scenario_id": "demo_01",
+      "scenario_name": "直播电商三巨头激战：抖音电商 vs 淘宝直播 vs 快手电商",
+      "pitch_order": 1,
+      "recommended_as": "开场Demo",
+      "rationale": "字节跳动核心业务、数据丰富、竞争格局清晰、观众最熟悉",
+      "estimated_duration_minutes": 5,
+      "demo_flow": {
+        "step1_input": {
+          "description": "用户Query输入",
+          "sample_queries": [
+            "分析抖音电商、淘宝直播、快手电商的竞争格局",
+            "谁是中国直播电商的老大？",
+            "字节跳动做电商的优势和劣势是什么？"
+          ],
+          "system_input": {
+            "entities": [ "抖音电商", "淘宝直播", "快手电商" ],
+            "industry": "直播电商",
+            "analysis_type": "三维度对比分析",
+            "time_range": "2023-2024"
+          }
+        },
+        "step2_rag_retrieval": {
+          "description": "系统RAG检索过程展示",
+          "l1_facts": [
+            "实时检索三家平台的最新财报数据",
+            "爬取各平台GMV、DAU、活跃买家等关键指标",
+            "抓取最新战略动态（如抖音商城独立APP、快手信任电商）"
+          ],
+          "l2_knowledge": [
+            "匹配直播电商行业知识库：市场规模4,800亿，渗透率25%",
+            "调取行业基准指标：直播转化率3-8%，退货率30-50%",
+            "调取头部玩家数据：抖音45.8%份额，淘宝31.3%，快手18.8%"
+          ],
+          "l3_methodology": [
+            "调用8维度评分标准",
+            "调用SWOT分析模板（电商特化版）",
+            "调用对比维度定义（7大类32个指标）"
+          ]
+        },
+        "step3_analysis_output": {
+          "description": "系统分析输出展示",
+          "expected_outputs": [
+            {
+              "output_type": "评分雷达图",
+              "content": {
+                "抖音电商": { "market_scale": 8, "monetization": 7, "user_engagement": 9, "logistics_fulfillment": 5, "content_ecosystem": 10, "merchant_ecosystem": 6, "tech_innovation": 9, "brand_trust": 6, "total": 60 },
+                "淘宝直播": { "market_scale": 10, "monetization": 9, "user_engagement": 6, "logistics_fulfillment": 8, "content_ecosystem": 6, "merchant_ecosystem": 9, "tech_innovation": 8, "brand_trust": 8, "total": 64 },
+                "快手电商": { "market_scale": 6, "monetization": 5, "user_engagement": 7, "logistics_fulfillment": 5, "content_ecosystem": 7, "merchant_ecosystem": 5, "tech_innovation": 6, "brand_trust": 7, "total": 48 }
+              },
+              "highlight": "抖音电商在content_ecosystem维度满分10分，证明内容电商模式的核心优势"
+            },
+            {
+              "output_type": "SWOT对比矩阵",
+              "content": {
+                "抖音电商_SWOT": {
+                  "S": [ "6亿DAU流量池", "推荐算法天花板", "内容生态2000万创作者", "AI全栈能力" ],
+                  "W": [ "无自建物流", "标品供应链弱", "退货率40%+", "商家工具不成熟" ],
+                  "O": [ "货架电商万亿空间", "TikTok Shop全球化", "AI数字人降本", "店播转型提升take rate" ],
+                  "T": [ "视频号追赶", "淘宝内容化反击", "直播监管趋严", "TikTok封禁风险" ]
+                }
+              }
+            },
+            {
+              "output_type": "关键发现结论",
+              "conclusions": [
+                "结论1：抖音电商以45.8%市场份额居直播电商第一，但综合评分（60分）略低于淘宝直播（64分），差距主要在履约和品牌信任",
+                "结论2：抖音的核心护城河是内容生态（满分）和算法（9分），这是淘宝直播短期难以逾越的",
+                "结论3：物流履约（5分）和品牌信任（6分）是抖音电商最大的短板，需要3-5年建设期",
+                "结论4：快手电商份额持续萎缩（18.8%→？），信任电商差异化未能阻止用户流失"
+              ]
+            }
+          ]
+        },
+        "step4_tactical_output": {
+          "description": "战术卡生成展示",
+          "tactic_cards": [
+            {
+              "card_type": "竞争定位卡",
+              "content": "抖音电商是直播电商赛道的[内容驱动型领导者]，核心差异化是'兴趣电商'模式——通过算法推荐内容激发购买需求，而非用户主动搜索。当前处于从达人直播向店播转型的关键期。"
+            },
+            {
+              "card_type": "威胁应对卡",
+              "content": "威胁：视频号电商依托13亿微信用户快速增长。应对策略：强化算法精准度和内容差异化，建设创作者独家签约体系，推出'星图计划'锁定头部达人。"
+            }
+          ]
+        },
+        "demo_script_presentation": [
+          "【开场30秒】'各位评委，今天我们来分析一个大家每天都在用的场景——直播电商。我们输入这样一个问题：抖音、淘宝直播、快手，谁是直播电商真正的王者？'",
+          "【RAG检索30秒】'系统首先检索L1层实时数据，获取三家平台最新财报和战略动态；然后匹配L2层直播电商行业知识库，4,800亿市场规模、25%渗透率等关键数据自动填充；最后调用L3层的8维度评分标准和SWOT模板。'",
+          "【评分展示60秒】'8维度雷达图出来了！抖音电商在内容生态满分10分——这是字节的核心护城河。算法能力9分，用户粘性9分。但物流只有5分，品牌信任6分——这正是字节做电商最大的两个短板。'",
+          "【SWOT展示60秒】'SWOT分析中，S端6亿DAU、算法天花板、2000万创作者三个顶级优势；W端无自建物流、退货率40%、商家工具弱是三大痛点。O端货架电商万亿空间、TikTok全球化是最值得关注的机会。'",
+          "【结论30秒】'综合评分抖音60分，淘宝64分——但抖音的增长速度是淘宝的3倍。如果抖音补齐物流和品牌短板，有望在2年内超越淘宝成为电商第一。这就是AI Agent给出的判断。'"
+        ]
+      }
+    },
+    {
+      "scenario_id": "demo_02",
+      "scenario_name": "跨境电商出海之战：SHEIN vs Temu vs AliExpress",
+      "pitch_order": 2,
+      "recommended_as": "高潮Demo",
+      "rationale": "全球化视角、商业模式对比精彩、数据戏剧性、体现系统国际视野",
+      "estimated_duration_minutes": 5,
+      "demo_flow": {
+        "step1_input": {
+          "description": "用户Query输入",
+          "sample_queries": [
+            "Temu和SHEIN谁更强？",
+            "中国跨境电商出海的竞争格局分析",
+            "AliExpress、Temu、SHEIN的优劣势对比"
+          ],
+          "system_input": {
+            "entities": [ "Temu", "SHEIN", "AliExpress" ],
+            "industry": "跨境电商",
+            "analysis_type": "商业模式与竞争力对比",
+            "time_range": "2023-2024"
+          }
+        },
+        "step2_rag_retrieval": {
+          "description": "RAG检索过程",
+          "l1_facts": [
+            "Temu 2023年GMV约180亿美元，已进入50+国家",
+            "SHEIN 2023年GMV约450亿美元，估值660亿美元",
+            "AliExpress Choice服务覆盖200+国家"
+          ],
+          "l2_knowledge": [
+            "跨境电商行业知识：全球市场规模1,200亿美元",
+            "三种模式对比：全托管vs半托管vs独立站",
+            "关键指标：跨境物流时效7-15天，退货率8-15%"
+          ],
+          "l3_methodology": [
+            "8维度评分",
+            "波特五力分析（跨境电商特化）",
+            "单位经济模型对比"
+          ]
+        },
+        "step3_analysis_output": {
+          "description": "分析输出",
+          "expected_outputs": [
+            {
+              "output_type": "商业模式对比表",
+              "content": {
+                "Temu": { "model": "全托管+极致性价比", "aov_usd": 25, "margin": "-15%", "countries": 50, "key_advantage": "低价+社交裂变" },
+                "SHEIN": { "model": "DTC快时尚+小单快返", "aov_usd": 35, "margin": "8-10%", "countries": 150, "key_advantage": "柔性供应链+时尚预测" },
+                "AliExpress": { "model": "平台模式+Choice服务", "aov_usd": 20, "margin": "3-5%", "countries": 200, "key_advantage": "覆盖最全+阿里生态" }
+              }
+            },
+            {
+              "output_type": "8维度评分",
+              "content": {
+                "Temu": { "market_scale": 6, "monetization": 3, "user_engagement": 7, "logistics_fulfillment": 4, "content_ecosystem": 5, "merchant_ecosystem": 7, "tech_innovation": 7, "brand_trust": 4, "total": 43 },
+                "SHEIN": { "market_scale": 8, "monetization": 7, "user_engagement": 8, "logistics_fulfillment": 6, "content_ecosystem": 7, "merchant_ecosystem": 6, "tech_innovation": 7, "brand_trust": 5, "total": 54 },
+                "AliExpress": { "market_scale": 7, "monetization": 6, "user_engagement": 6, "logistics_fulfillment": 6, "content_ecosystem": 5, "merchant_ecosystem": 7, "tech_innovation": 7, "brand_trust": 7, "total": 51 }
+              }
+            },
+            {
+              "output_type": "单位经济模型对比",
+              "unit_economics": {
+                "Temu": { "aov": "$25", "fulfillment": "$8", "marketing": "$10", "margin": "-15%", "status": "战略性亏损" },
+                "SHEIN": { "aov": "$35", "fulfillment": "$7", "marketing": "$5", "margin": "8%", "status": "已盈利" },
+                "AliExpress": { "aov": "$20", "fulfillment": "$6", "marketing": "$3", "margin": "3%", "status": "微利" }
+              }
+            }
+          ]
+        },
+        "step4_risk_alert": {
+          "description": "风险预警展示",
+          "risk_alerts": [
+            {
+              "risk": "Temu De Minimis政策风险",
+              "severity": "致命",
+              "description": "美国800美元以下免税政策可能被取消，Temu成本将上升30%+",
+              "probability": "中高",
+              "impact": "如政策取消，Temu单位经济模型从-15%恶化至-45%"
+            },
+            {
+              "risk": "SHEIN IP与ESG风险",
+              "severity": "严重",
+              "description": "多次被品牌方起诉侵权，ESG评级低影响IPO",
+              "probability": "高"
+            }
+          ]
+        },
+        "demo_script_presentation": [
+          "【开场20秒】'跨境电商是中国电商出海的第二战场。我们来看三个中国企业的海外对决：拼多多的Temu、SHEIN、阿里速卖通。'",
+          "【商业模式30秒】'三种完全不同的模式！Temu全托管——商家只管供货，平台包办一切，但每单亏15%。SHEIN小单快返——7天从设计到上架，柔性供应链已盈利。AliExpress平台模式——覆盖200国，但增速慢。'",
+          "【评分展示45秒】'8维度评分，SHEIN总分54第一，阿里51第二，Temu仅43分——但Temu的增速是300%！这里有个有趣的悖论：评分最低的增长最快，因为拼多多的策略就是亏钱换市场。'",
+          "【风险预警45秒】'系统还识别出一个致命风险：Temu高度依赖美国800美元以下免税政策。如果这政策取消，Temu的亏损将从15%扩大到45%！这是一个可能颠覆格局的黑天鹅。'",
+          "【结论30秒】'长期来看SHEIN模式最健康（已盈利），但短期Temu的烧钱速度可能改写全球电商版图。AI Agent建议关注TikTok Shop——字节的内容电商模式可能是最大变量。'"
+        ]
+      }
+    },
+    {
+      "scenario_id": "demo_03",
+      "scenario_name": "AI电商未来之战：多平台AI能力对比与战略建议",
+      "pitch_order": 3,
+      "recommended_as": "压轴Demo",
+      "rationale": "紧扣AI主题、前瞻性视角、直接回答'字节跳动的AI电商战略'、展示系统对字节的价值",
+      "estimated_duration_minutes": 4,
+      "demo_flow": {
+        "step1_input": {
+          "description": "用户Query输入",
+          "sample_queries": [
+            "字节跳动在AI电商领域的竞争力如何？",
+            "各电商平台AI能力对比",
+            "AI如何重塑电商竞争格局？"
+          ],
+          "system_input": {
+            "entities": [ "字节跳动", "阿里", "京东", "拼多多" ],
+            "industry": "AI+电商",
+            "analysis_type": "AI能力对比+战略建议",
+            "time_range": "2024-2025"
+          }
+        },
+        "step2_rag_retrieval": {
+          "description": "RAG检索过程",
+          "l1_facts": [
+            "字节跳动AI投入：豆包大模型+火山引擎+AI数字人+推荐算法",
+            "阿里AI投入：通义千问+达摩院+AI客服+万相实验室",
+            "京东AI投入：言犀大模型+智能客服+AI选品",
+            "拼多多AI投入：相对较少公开信息，重点在推荐算法优化"
+          ],
+          "l2_knowledge": [
+            "AI+电商知识库：AI应用覆盖搜索/推荐/客服/定价/营销/内容生成/仓储7大场景",
+            "技术趋势：数字人直播成本降低80%，AI客服问题解决率达90%"
+          ],
+          "l3_methodology": [
+            "AI能力评分矩阵",
+            "技术成熟度曲线映射",
+            "战略建议生成模板"
+          ]
+        },
+        "step3_analysis_output": {
+          "description": "分析输出",
+          "expected_outputs": [
+            {
+              "output_type": "AI能力评分矩阵",
+              "ai_scoring": {
+                "recommendation": { "字节跳动": 10, "阿里": 9, "京东": 7, "拼多多": 6 },
+                "content_generation": { "字节跳动": 9, "阿里": 7, "京东": 5, "拼多多": 5 },
+                "ai_customer_service": { "字节跳动": 8, "阿里": 9, "京东": 8, "拼多多": 6 },
+                "smart_pricing": { "字节跳动": 7, "阿里": 8, "京东": 7, "拼多多": 8 },
+                "demand_forecast": { "字节跳动": 7, "阿里": 9, "京东": 8, "拼多多": 7 },
+                "ai_logistics": { "字节跳动": 5, "阿里": 8, "京东": 9, "拼多多": 6 },
+                "digital_human": { "字节跳动": 9, "阿里": 7, "京东": 6, "拼多多": 5 }
+              }
+            },
+            {
+              "output_type": "AI电商战略建议（字节跳动）",
+              "strategies": [
+                {
+                  "priority": "P0",
+                  "strategy": "AI数字人直播规模化",
+                  "description": "利用字节AI能力推出数字人直播SaaS，让百万商家24小时开播，降低开播成本80%",
+                  "expected_impact": "商家开播率提升300%，直播GMV提升50%"
+                },
+                {
+                  "priority": "P0",
+                  "strategy": "AI个性化推荐升级",
+                  "description": "基于豆包大模型的多模态推荐，实现图文+视频+直播跨场景统一推荐",
+                  "expected_impact": "CTR提升20%，人均消费提升30%"
+                },
+                {
+                  "priority": "P1",
+                  "strategy": "AI智能供应链",
+                  "description": "利用AI预测需求+智能补货+动态定价，弥补供应链短板",
+                  "expected_impact": "库存周转提升30%，缺货率降低50%"
+                },
+                {
+                  "priority": "P1",
+                  "strategy": "AI内容生成平台",
+                  "description": "为商家提供AI生成商品图/短视频/文案的一站式工具",
+                  "expected_impact": "商家内容生产成本降低70%，内容供给量提升10倍"
+                }
+              ]
+            }
+          ]
+        },
+        "demo_script_presentation": [
+          "【开场20秒】'最后一个Demo，也是最重要的——AI如何重塑电商？字节跳动在AI电商竞赛中处于什么位置？'",
+          "【AI能力评分45秒】'7个AI应用场景逐一评分：推荐算法字节10分满分——这是字节起家的本领。内容生成9分——剪映+即梦AI的积累。但AI物流只有5分——因为字节没有自建物流体系。'",
+          "【战略建议45秒】'基于分析，AI Agent给字节跳动生成4条战略建议：P0优先级——AI数字人直播规模化，让百万商家零成本开播；AI推荐升级基于豆包大模型。P1——AI供应链和AI内容生成工具。'",
+          "【总结30秒】'综合所有分析，字节跳动电商的核心公式是：6亿DAU × AI推荐天花板 × 内容生态护城河 = 万亿级电商平台的入场券。AI Agent系统可以持续监控竞品动态，为字节电商决策提供实时情报支持。这就是我们的价值！'"
+        ]
+      }
+    }
+  ],
+  "presentation_tips": {
+    "overall_strategy": [
+      "Demo1用直播电商建立共鸣（评委都懂），展示系统基础能力",
+      "Demo2用跨境电商制造惊喜（对比精彩），展示系统深度分析能力",
+      "Demo3用AI电商回扣主题（直接回答字节跳动场景），展示系统战略价值"
+    ],
+    "technical_highlights": [
+      "强调RAG四层架构的完整性和电商知识的深度",
+      "展示8维度评分的客观性和可量化",
+      "展示SWOT的交叉策略矩阵（SO/ST/WO/WT）",
+      "展示实时风险预警能力"
+    ],
+    "qna_preparation": [
+      "Q: 数据来源如何保障实时性？A: L1层每日自动抓取+L2层季度更新+L3方法论持续优化",
+      "Q: 评分是否主观？A: 每个维度有0-10锚定描述，正例反例，可验证可追溯",
+      "Q: 如何处理数据冲突？A: 多源交叉验证，置信度评分，人工审核机制",
+      "Q: 系统扩展性？A: 行业知识库模块化，新增行业仅需添加L2层数据+L3层评分标准"
+    ]
+  }
+}

@@ -1,0 +1,432 @@
+{
+  "title": "电商竞品8维度评分标准",
+  "description": "适配电商场景的8维度评分体系（0-10分制），用于竞品量化评估",
+  "version": "1.0.0",
+  "scoring_scale": {
+    "min": 0,
+    "max": 10,
+    "step": 1,
+    "legend": {
+      "10": "行业绝对领先，无可争议的标杆",
+      "9": "行业头部水平，具备显著优势",
+      "8": "高于行业平均，有明显竞争力",
+      "7": "行业平均水平，无明显短板",
+      "6": "略低于行业平均，存在改进空间",
+      "5": "及格线，基本可用但有明显不足",
+      "4": "较差，严重影响用户体验或经营效率",
+      "3": "很差，处于行业末尾",
+      "2": "极差，几乎不可用",
+      "1": "行业最差水平",
+      "0": "完全缺失该能力"
+    }
+  },
+  "dimensions": [
+    {
+      "dim_id": "market_scale",
+      "dim_name": "市场规模与增长",
+      "weight": 0.18,
+      "description": "评估平台的GMV规模、营收规模、用户基数及增长态势",
+      "applicable_industries": [ "直播电商", "社交电商", "跨境电商", "即时零售", "综合电商" ],
+      "sub_criteria": [
+        {
+          "criterion": "GMV规模",
+          "weight": 0.35,
+          "anchors": {
+            "10": { "description": "年度GMV超万亿级别", "example": "淘宝天猫年GMV超8万亿" },
+            "8": { "description": "年度GMV在5000亿-1万亿", "example": "拼多多2023年GMV约4.5万亿" },
+            "6": { "description": "年度GMV在1000-5000亿", "example": "抖音电商2023年GMV约2.2万亿" },
+            "4": { "description": "年度GMV在100-1000亿", "example": "小红书电商GMV约数百亿" },
+            "2": { "description": "年度GMV低于100亿" }
+          }
+        },
+        {
+          "criterion": "用户规模",
+          "weight": 0.35,
+          "anchors": {
+            "10": { "description": "年活跃买家超5亿", "example": "拼多多2023年活跃买家7.6亿" },
+            "8": { "description": "年活跃买家3-5亿", "example": "京东年活跃买家约5.5亿" },
+            "6": { "description": "年活跃买家1-3亿", "example": "抖音电商活跃买家约2亿+" },
+            "4": { "description": "年活跃买家5000万-1亿", "example": "快手电商活跃买家约8000万" },
+            "2": { "description": "年活跃买家低于5000万" }
+          }
+        },
+        {
+          "criterion": "增长率",
+          "weight": 0.30,
+          "anchors": {
+            "10": { "description": "GMV/收入同比增长超50%", "example": "Temu 2023年增长超300%" },
+            "8": { "description": "同比增长20-50%", "example": "抖音电商2023年增长约60%" },
+            "6": { "description": "同比增长10-20%", "example": "拼多多2023年增长约20%" },
+            "4": { "description": "同比增长0-10%" },
+            "2": { "description": "负增长" }
+          }
+        }
+      ],
+      "positive_examples": [
+        "拼多多2023年营收2400亿+，同比增长90%，活跃买家7.6亿，三项指标均行业领先",
+        "抖音电商凭借6亿+日活流量池，年GMV突破2万亿，增速超60%"
+      ],
+      "negative_examples": [
+        "某平台GMV连续三年下滑，用户流失严重，市场份额从5%跌至1%以下",
+        "某跨境电商站点月活仅数十万，SKU不足万，无法形成规模效应"
+      ]
+    },
+    {
+      "dim_id": "monetization",
+      "dim_name": "货币化能力",
+      "weight": 0.15,
+      "description": "评估平台将流量转化为收入的效率，包括take rate、广告效率、佣金体系",
+      "sub_criteria": [
+        {
+          "criterion": "Take Rate",
+          "weight": 0.40,
+          "anchors": {
+            "10": { "description": "Take Rate超4.5%且稳定", "example": "阿里巴巴国内电商take rate约4.5%" },
+            "8": { "description": "Take Rate在3-4.5%", "example": "京东take rate约3.3%" },
+            "6": { "description": "Take Rate在2-3%", "example": "拼多多take rate约3.1%" },
+            "4": { "description": "Take Rate在1-2%", "example": "部分跨境电商take rate低于2%" },
+            "2": { "description": "Take Rate低于1%，严重依赖补贴" }
+          }
+        },
+        {
+          "criterion": "广告ARPU",
+          "weight": 0.35,
+          "anchors": {
+            "10": { "description": "广告ARPU超300元/年", "example": "阿里广告ARPU约500元+/年" },
+            "8": { "description": "广告ARPU在150-300元/年" },
+            "6": { "description": "广告ARPU在80-150元/年" },
+            "4": { "description": "广告ARPU在30-80元/年" },
+            "2": { "description": "广告ARPU低于30元/年" }
+          }
+        },
+        {
+          "criterion": "佣金体系健康度",
+          "weight": 0.25,
+          "anchors": {
+            "10": { "description": "佣金结构清晰、差异化合理、商家接受度高" },
+            "8": { "description": "佣金体系完善，偶有商家抱怨" },
+            "6": { "description": "佣金体系基本可用，存在调整争议" },
+            "4": { "description": "佣金体系频繁变动，商家流失" },
+            "2": { "description": "佣金体系混乱，商家大规模抗议" }
+          }
+        }
+      ],
+      "positive_examples": [
+        "阿里国内电商take rate 4.5%+，广告收入超3000亿，货币化效率行业最高",
+        "拼多多通过百亿补贴+精准广告，实现高转化率的同时保持商家ROI竞争力"
+      ],
+      "negative_examples": [
+        "某平台take rate仅0.5%，每笔交易亏损严重，靠资本输血维持运营",
+        "某平台频繁调整佣金政策，商家怨声载道，品牌商家集体出走"
+      ]
+    },
+    {
+      "dim_id": "user_engagement",
+      "dim_name": "用户活跃度与粘性",
+      "weight": 0.15,
+      "description": "评估用户打开频次、停留时长、复购率、NPS等粘性指标",
+      "sub_criteria": [
+        {
+          "criterion": "DAU/MAU比值",
+          "weight": 0.30,
+          "anchors": {
+            "10": { "description": "DAU/MAU > 0.4，用户每日打开", "example": "抖音DAU/MAU约0.45" },
+            "8": { "description": "DAU/MAU 0.25-0.4", "example": "拼多多DAU/MAU约0.28" },
+            "6": { "description": "DAU/MAU 0.15-0.25", "example": "淘宝DAU/MAU约0.18" },
+            "4": { "description": "DAU/MAU 0.08-0.15" },
+            "2": { "description": "DAU/MAU < 0.08" }
+          }
+        },
+        {
+          "criterion": "复购率",
+          "weight": 0.35,
+          "anchors": {
+            "10": { "description": "年购买4次以上用户占比>60%", "example": "京东Plus会员复购率超80%" },
+            "8": { "description": "年购买4次以上占比40-60%", "example": "拼多多复购率约50%" },
+            "6": { "description": "年购买4次以上占比25-40%" },
+            "4": { "description": "年购买4次以上占比10-25%" },
+            "2": { "description": "年购买4次以上占比<10%" }
+          }
+        },
+        {
+          "criterion": "NPS净推荐值",
+          "weight": 0.35,
+          "anchors": {
+            "10": { "description": "NPS > 50", "example": "京东NPS约55" },
+            "8": { "description": "NPS 30-50", "example": "天猫NPS约40" },
+            "6": { "description": "NPS 10-30" },
+            "4": { "description": "NPS -10到10" },
+            "2": { "description": "NPS < -10" }
+          }
+        }
+      ],
+      "positive_examples": [
+        "抖音DAU/MAU高达0.45，用户日均使用120+分钟，为电商转化提供充足时长",
+        "京东Plus会员超3000万，年消费额是非会员的10倍，复购率超80%"
+      ],
+      "negative_examples": [
+        "某平台用户下载后首单即流失，7日留存率不足5%，获客成本远超LTV",
+        "某平台NPS为负值，用户投诉率居高不下，口碑持续恶化"
+      ]
+    },
+    {
+      "dim_id": "logistics_fulfillment",
+      "dim_name": "履约与物流能力",
+      "weight": 0.14,
+      "description": "评估仓储、配送、售后的全链路履约效率",
+      "sub_criteria": [
+        {
+          "criterion": "配送时效",
+          "weight": 0.40,
+          "anchors": {
+            "10": { "description": "核心城市当日达率>80%，次日达率>95%", "example": "京东自营当日/次日达覆盖超90%" },
+            "8": { "description": "次日达率>80%，核心城市当日达率>50%" },
+            "6": { "description": "2日达率>70%，核心城市次日达" },
+            "4": { "description": "3日达率>60%，配送时效一般" },
+            "2": { "description": "平均配送超过5天" }
+          }
+        },
+        {
+          "criterion": "履约成本效率",
+          "weight": 0.30,
+          "anchors": {
+            "10": { "description": "履约成本率<6%，规模化效应显著", "example": "京东履约成本率约5.8%" },
+            "8": { "description": "履约成本率6-8%" },
+            "6": { "description": "履约成本率8-12%" },
+            "4": { "description": "履约成本率12-18%" },
+            "2": { "description": "履约成本率>18%" }
+          }
+        },
+        {
+          "criterion": "售后服务",
+          "weight": 0.30,
+          "anchors": {
+            "10": { "description": "7天无理由+极速退款+上门取件，退货处理<24小时" },
+            "8": { "description": "退款速度1-2天，有上门取件" },
+            "6": { "description": "退款速度3-5天，需自行寄回" },
+            "4": { "description": "退款流程复杂，周期>7天" },
+            "2": { "description": "无规范售后流程，退款困难" }
+          }
+        }
+      ],
+      "positive_examples": [
+        "京东211限时达覆盖数万个乡镇，自营物流成本率持续优化至5.8%",
+        "美团闪购30分钟达履约率超90%，平均配送时长仅28分钟"
+      ],
+      "negative_examples": [
+        "某平台无自建物流，完全依赖第三方，平均配送7天+，破损率5%",
+        "某跨境平台海外仓仅覆盖3国，其他区域配送需30天以上"
+      ]
+    },
+    {
+      "dim_id": "content_ecosystem",
+      "dim_name": "内容生态与流量运营",
+      "weight": 0.13,
+      "description": "评估内容创作生态、流量分发效率、KOL体系",
+      "sub_criteria": [
+        {
+          "criterion": "内容创作者规模与质量",
+          "weight": 0.35,
+          "anchors": {
+            "10": { "description": "百万级活跃创作者，头部KOL全覆盖", "example": "抖音创作者超2000万" },
+            "8": { "description": "数十万活跃创作者，头部KOL覆盖率高" },
+            "6": { "description": "数万活跃创作者，有稳定的KOL合作" },
+            "4": { "description": "创作者数量有限，内容生态薄弱" },
+            "2": { "description": "几乎无内容创作者生态" }
+          }
+        },
+        {
+          "criterion": "内容转化率",
+          "weight": 0.35,
+          "anchors": {
+            "10": { "description": "内容到购买转化率>10%", "example": "抖音直播转化率可达15%+" },
+            "8": { "description": "内容转化率5-10%", "example": "小红书笔记转化率约5-8%" },
+            "6": { "description": "内容转化率2-5%" },
+            "4": { "description": "内容转化率1-2%" },
+            "2": { "description": "内容转化率<1%" }
+          }
+        },
+        {
+          "criterion": "流量分发效率",
+          "weight": 0.30,
+          "anchors": {
+            "10": { "description": "千人千面精准推荐，CTR>8%，流量利用效率极高" },
+            "8": { "description": "推荐较精准，CTR 5-8%" },
+            "6": { "description": "推荐基本准确，CTR 3-5%" },
+            "4": { "description": "推荐一般，CTR 1-3%" },
+            "2": { "description": "几乎无个性化推荐" }
+          }
+        }
+      ],
+      "positive_examples": [
+        "抖音6亿+日活+2000万创作者，短视频到直播到购买的闭环转化率极高",
+        "小红书通过真实种草内容，实现5-8%的笔记到购买转化率，用户信任度高"
+      ],
+      "negative_examples": [
+        "某平台强行植入购物功能到社交场景，内容到购买转化率仅0.1%，用户体验差",
+        "某平台KOL体系混乱，带货数据造假严重，商家ROI极低"
+      ]
+    },
+    {
+      "dim_id": "merchant_ecosystem",
+      "dim_name": "商家生态与供应链",
+      "weight": 0.10,
+      "description": "评估商家数量、质量、赋能体系及供应链深度",
+      "sub_criteria": [
+        {
+          "criterion": "商家规模与质量",
+          "weight": 0.40,
+          "anchors": {
+            "10": { "description": "千万级活跃商家，品牌商家全覆盖，独家品牌多", "example": "天猫入驻品牌超20万" },
+            "8": { "description": "百万级活跃商家，主流品牌覆盖" },
+            "6": { "description": "数十万活跃商家，部分品牌入驻" },
+            "4": { "description": "数万商家，以中小卖家为主" },
+            "2": { "description": "商家数量极少" }
+          }
+        },
+        {
+          "criterion": "供应链深度",
+          "weight": 0.30,
+          "anchors": {
+            "10": { "description": "产业带深度覆盖，C2M反向定制成熟", "example": "拼多多直连1000+产业带" },
+            "8": { "description": "有核心产业带布局，部分C2M能力" },
+            "6": { "description": "供应链基础稳定，但缺乏深度整合" },
+            "4": { "description": "供应链较弱，依赖批发商" },
+            "2": { "description": "无供应链能力，纯撮合" }
+          }
+        },
+        {
+          "criterion": "商家赋能工具",
+          "weight": 0.30,
+          "anchors": {
+            "10": { "description": "AI选品+智能定价+数据分析+金融支持，全链路SaaS" },
+            "8": { "description": "提供数据分析和基础营销工具" },
+            "6": { "description": "有基础后台和数据看板" },
+            "4": { "description": "仅有简单的商品管理功能" },
+            "2": { "description": "几乎无商家工具" }
+          }
+        }
+      ],
+      "positive_examples": [
+        "淘宝通过千牛平台为千万商家提供全链路数字化工具，AI选品准确率达85%",
+        "拼多多直连1000+产业带工厂，C2M模式让厂家直达消费者，中间成本降低30%"
+      ],
+      "negative_examples": [
+        "某平台商家工具简陋，数据分析仅有GMV和订单数两个维度",
+        "某平台频繁罚款、冻结资金，优质商家大量流失至竞品"
+      ]
+    },
+    {
+      "dim_id": "tech_innovation",
+      "dim_name": "技术创新与AI能力",
+      "weight": 0.10,
+      "description": "评估AI应用深度、技术架构、研发投入",
+      "sub_criteria": [
+        {
+          "criterion": "AI应用广度",
+          "weight": 0.40,
+          "anchors": {
+            "10": { "description": "AI覆盖搜索/推荐/客服/定价/营销/内容生成/仓储全链路", "example": "阿里通义千问+达摩院技术全面赋能" },
+            "8": { "description": "AI在推荐/搜索/客服等核心场景深度应用" },
+            "6": { "description": "AI在部分场景有应用，如推荐和客服" },
+            "4": { "description": "仅有基础的AI应用" },
+            "2": { "description": "几乎无AI能力" }
+          }
+        },
+        {
+          "criterion": "推荐算法精准度",
+          "weight": 0.35,
+          "anchors": {
+            "10": { "description": "推荐CTR>10%，转化率提升超50%，千人千面实现度高" },
+            "8": { "description": "推荐CTR 6-10%，转化率提升20-50%" },
+            "6": { "description": "推荐CTR 3-6%，转化率提升10-20%" },
+            "4": { "description": "推荐CTR 1-3%，转化率提升有限" },
+            "2": { "description": "推荐CTR<1%，几乎无效果" }
+          }
+        },
+        {
+          "criterion": "研发投入占比",
+          "weight": 0.25,
+          "anchors": {
+            "10": { "description": "研发费用率>15%，持续高研发投入", "example": "阿里研发费用率约15%" },
+            "8": { "description": "研发费用率10-15%" },
+            "6": { "description": "研发费用率5-10%" },
+            "4": { "description": "研发费用率2-5%" },
+            "2": { "description": "研发费用率<2%" }
+          }
+        }
+      ],
+      "positive_examples": [
+        "抖音推荐算法基于万亿级参数模型，个性化推荐CTR超10%，用户时长持续增长",
+        "阿里通义千问大模型赋能千牛智能客服，问题解决率达90%，商家人力成本降低40%"
+      ],
+      "negative_examples": [
+        "某平台推荐算法基于简单规则，CTR不足1%，用户经常收到不相关推荐",
+        "某平台无AI客服，人工客服响应时间超30分钟，满意度仅60%"
+      ]
+    },
+    {
+      "dim_id": "brand_trust",
+      "dim_name": "品牌信任与合规",
+      "weight": 0.05,
+      "description": "评估正品保障、用户信任、合规经营、ESG表现",
+      "sub_criteria": [
+        {
+          "criterion": "正品保障体系",
+          "weight": 0.35,
+          "anchors": {
+            "10": { "description": "严格品牌授权+正品保险+假一赔十，假货率<0.001%" },
+            "8": { "description": "有正品保障措施，假货率<0.01%" },
+            "6": { "description": "有基本打假机制，假货率<0.1%" },
+            "4": { "description": "假货问题时有发生，投诉较多" },
+            "2": { "description": "假货泛滥，品牌方多次投诉" }
+          }
+        },
+        {
+          "criterion": "合规经营",
+          "weight": 0.35,
+          "anchors": {
+            "10": { "description": "完全符合监管要求，数据安全认证齐全" },
+            "8": { "description": "基本合规，偶有监管问询" },
+            "6": { "description": "存在合规风险，已被约谈" },
+            "4": { "description": "收到监管处罚" },
+            "2": { "description": "重大合规问题，被责令整改" }
+          }
+        },
+        {
+          "criterion": "用户口碑",
+          "weight": 0.30,
+          "anchors": {
+            "10": { "description": "用户满意度>95%，投诉率<0.1%" },
+            "8": { "description": "满意度85-95%，投诉率0.1-0.5%" },
+            "6": { "description": "满意度70-85%，投诉率0.5-1%" },
+            "4": { "description": "满意度50-70%，投诉率1-3%" },
+            "2": { "description": "满意度<50%，投诉率>3%" }
+          }
+        }
+      ],
+      "positive_examples": [
+        "京东自营模式+品牌直供，正品率99.99%，用户信任度行业最高",
+        "得物首创先鉴别后发货模式，奢侈品鉴定准确率99.99%，建立强信任壁垒"
+      ],
+      "negative_examples": [
+        "某平台假货投诉率超5%，多个品牌方发布假货声明",
+        "某平台因数据安全问题被网信办约谈，用户隐私泄露风险高"
+      ]
+    }
+  ],
+  "scoring_workflow": {
+    "step1": "数据收集：自动抓取+人工标注获取各维度原始数据",
+    "step2": "归一化：将所有指标转换为0-10标准化分数",
+    "step3": "加权计算：根据权重计算综合得分",
+    "step4": "一致性校验：专家评审确保分数合理",
+    "step5": "动态更新：季度更新评分，重大事件实时调整"
+  },
+  "interpretation_guidelines": {
+    "8.0+": "行业领导者，具备显著竞争优势",
+    "7.0-8.0": "强势竞争者，有明确的竞争亮点",
+    "6.0-7.0": "行业平均水平，无明显短板",
+    "5.0-6.0": "有改进空间，存在明显薄弱环节",
+    "<5.0": "竞争劣势，需要根本性提升"
+  }
+}

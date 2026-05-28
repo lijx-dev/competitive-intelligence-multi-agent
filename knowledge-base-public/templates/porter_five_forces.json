@@ -1,0 +1,177 @@
+{
+  "title": "波特五力分析模板 - 电商特化版",
+  "description": "适配电商行业的波特五力分析框架，含评分标准和行业案例",
+  "version": "1.0.0",
+  "framework": {
+    "force1_buyer_power": {
+      "force_name": "买方议价能力",
+      "force_name_en": "Bargaining Power of Buyers",
+      "ecommerce_specifics": {
+        "description": "消费者在电商平台上的议价能力，受选择丰富度、切换成本、价格透明度影响",
+        "key_factors": [
+          { "factor": "用户切换成本", "assessment": "极低——多平台比价工具成熟，切换仅需下载APP" },
+          { "factor": "价格透明度", "assessment": "极高——比价网站/历史价格查询让价格信息完全透明" },
+          { "factor": "选择丰富度", "assessment": "极高——任何商品都有数十个平台可选" },
+          { "factor": "用户集中度", "assessment": "低——分散的海量消费者" },
+          { "factor": "后向一体化威胁", "assessment": "低——消费者自建平台可能性为零" }
+        ],
+        "scoring": {
+          "scale": "1-10",
+          "1": "买方几乎无议价能力",
+          "5": "买方有一定议价能力",
+          "10": "买方议价能力极强"
+        },
+        "industry_scores": {
+          "综合电商": 9,
+          "社交电商": 8,
+          "直播电商": 7,
+          "跨境电商": 8,
+          "即时零售": 6
+        },
+        "conclusion": "电商行业买方议价能力极强（8-9/10），消费者可以轻松在多平台间切换，价格战成为常态。平台需通过会员体系、个性化服务提升切换成本。"
+      }
+    },
+    "force2_supplier_power": {
+      "force_name": "卖方（商家/供应商）议价能力",
+      "force_name_en": "Bargaining Power of Suppliers",
+      "ecommerce_specifics": {
+        "description": "商家/品牌方/供应商对电商平台的议价能力",
+        "key_factors": [
+          { "factor": "商家集中度", "assessment": "低——海量中小商家，但头部品牌有话语权" },
+          { "factor": "商家切换成本", "assessment": "中低——多平台开店成为常态，但历史数据和运营投入难以迁移" },
+          { "factor": "前向一体化威胁", "assessment": "中——DTC趋势下品牌自建渠道增多" },
+          { "factor": "平台对商家的依赖", "assessment": "高——无商家则无商品，无商品则无用户" },
+          { "factor": "差异化程度", "assessment": "中——独家品牌/首发商品具有稀缺性" }
+        ],
+        "scoring": {
+          "1": "卖方几乎无议价能力",
+          "5": "卖方有一定议价能力",
+          "10": "卖方议价能力极强"
+        },
+        "industry_scores": {
+          "综合电商": { "天猫": 7, "京东": 5, "拼多多": 3 },
+          "直播电商": { "抖音": 5, "快手": 4 },
+          "说明": "品牌商家对天猫议价能力强（7分），因为品牌是天猫的核心竞争力；白牌工厂对拼多多议价能力弱（3分），因为拼多多拥有流量定价权"
+        },
+        "strategic_implications": [
+          "天猫必须服务好品牌商家，否则品牌会流失到抖音/京东",
+          "拼多多通过流量定价权压制供应商利润，实现极致低价",
+          "抖音正在从依赖达人向服务品牌商家转型"
+        ]
+      }
+    },
+    "force3_new_entrants": {
+      "force_name": "新进入者威胁",
+      "force_name_en": "Threat of New Entrants",
+      "ecommerce_specifics": {
+        "description": "新竞争者进入电商领域的威胁程度",
+        "barriers_to_entry": [
+          { "barrier": "网络效应", "strength": "极高——用户和商家互相吸引形成飞轮" },
+          { "barrier": "规模经济", "strength": "高——物流/技术/营销的固定成本需大规模摊薄" },
+          { "barrier": "资本需求", "strength": "高——百亿级投入是入门门槛" },
+          { "barrier": "技术壁垒", "strength": "中高——推荐算法/搜索/支付系统复杂度高" },
+          { "barrier": "政策壁垒", "strength": "中——平台需取得多项经营许可" },
+          { "barrier": "用户习惯", "strength": "中高——购物心智一旦形成难以改变" }
+        ],
+        "scoring": {
+          "1": "几乎无新进入者威胁",
+          "5": "有一定威胁",
+          "10": "新进入者威胁极大"
+        },
+        "industry_scores": {
+          "综合电商": 3,
+          "社交电商": 6,
+          "直播电商": 7,
+          "跨境电商": 7,
+          "即时零售": 5,
+          "说明": "综合电商格局已定（3分威胁低），但直播电商（7分）和跨境电商（7分）仍在激烈竞争中"
+        },
+        "recent_entrants": [
+          { "entrant": "视频号电商", "impact": "利用微信13亿用户，威胁等级高" },
+          { "entrant": "TikTok Shop", "impact": "全球化内容电商，威胁等级高" },
+          { "entrant": "Temu", "impact": "拼多多出海，烧钱换市场，威胁等级中" },
+          { "entrant": "小红书电商", "impact": "买手电商差异化，威胁等级中" }
+        ]
+      }
+    },
+    "force4_substitutes": {
+      "force_name": "替代品威胁",
+      "force_name_en": "Threat of Substitutes",
+      "ecommerce_specifics": {
+        "description": "其他零售形态对电商的替代威胁",
+        "substitute_channels": [
+          { "channel": "线下零售/实体门店", "threat_level": "中", "description": "体验型消费（奢侈品/生鲜/家居）线下仍不可替代" },
+          { "channel": "社区团购", "threat_level": "中低", "description": "下沉市场生鲜替代，但增长放缓" },
+          { "channel": "即时零售（30分钟达）", "threat_level": "中高", "description": "对次日达电商形成替代，尤其是快消品" },
+          { "channel": "品牌DTC官网/小程序", "threat_level": "中", "description": "品牌方去平台化趋势" },
+          { "channel": "O2O到店消费", "threat_level": "中低", "description": "餐饮/服务类消费的到店场景" }
+        ],
+        "scoring": {
+          "1": "几乎无替代威胁",
+          "5": "一定替代威胁",
+          "10": "替代威胁极大"
+        },
+        "industry_scores": {
+          "标品电商（3C/家电）": 4,
+          "非标品电商（服饰/食品）": 7,
+          "生鲜电商": 8,
+          "即时零售": 5,
+          "跨境电商": 3
+        },
+        "conclusion": "即时零售是最大替代威胁（30分钟达替代次日达），品牌DTC是长期威胁。综合电商需要通过提升体验和服务深度来防御替代。"
+      }
+    },
+    "force5_competitive_rivalry": {
+      "force_name": "现有竞争者的竞争强度",
+      "force_name_en": "Competitive Rivalry",
+      "ecommerce_specifics": {
+        "description": "电商平台间的竞争激烈程度",
+        "intensity_factors": [
+          { "factor": "竞争者数量", "assessment": "多——多平台混战，各自有差异化定位" },
+          { "factor": "行业增速", "assessment": "放缓——从20%+降至10-15%，存量竞争加剧" },
+          { "factor": "产品差异化", "assessment": "有限——商品同质化严重，主要靠服务和体验差异" },
+          { "factor": "退出壁垒", "assessment": "高——沉没成本高，谁都不愿退出" },
+          { "factor": "价格竞争", "assessment": "极其激烈——百亿补贴、全网最低价成标配" }
+        ],
+        "scoring": {
+          "1": "竞争温和",
+          "5": "竞争中等",
+          "10": "竞争极其激烈"
+        },
+        "industry_scores": {
+          "综合电商": 9,
+          "直播电商": 8,
+          "社交电商": 7,
+          "跨境电商": 9,
+          "即时零售": 8
+        },
+        "key_battlegrounds": [
+          { "battle": "价格战", "intensity": "10/10", "participants": "所有平台" },
+          { "battle": "用户争夺", "intensity": "9/10", "participants": "抖音vs快手vs视频号vs淘宝" },
+          { "battle": "商家争夺", "intensity": "8/10", "participants": "天猫vs京东vs抖音vs拼多多" },
+          { "battle": "物流时效", "intensity": "8/10", "participants": "京东vs美团vs阿里" },
+          { "battle": "AI技术", "intensity": "7/10", "participants": "阿里vs字节vs京东" }
+        ],
+        "conclusion": "电商行业竞争强度极高（8-9/10），价格战是主要竞争手段，行业利润持续承压。差异化定位和细分赛道是突围方向。"
+      }
+    }
+  },
+  "five_forces_summary": {
+    "overall_assessment": "电商行业五力综合分析",
+    "scores": {
+      "买方议价能力": 9,
+      "卖方议价能力": 5,
+      "新进入者威胁": 6,
+      "替代品威胁": 6,
+      "现有竞争强度": 9
+    },
+    "interpretation": "买方议价能力和现有竞争强度均为9/10（极高），说明电商行业是'买方市场+红海竞争'的典型格局。平台需通过规模效应、差异化定位和生态壁垒来获取竞争优势。",
+    "strategic_implications": [
+      "差异化定位是避免价格战红海的唯一出路",
+      "构建生态壁垒（物流/支付/内容/数据）提升切换成本",
+      "服务高价值细分人群（如Plus会员/88VIP）降低买方议价能力",
+      "投资AI技术构建新的竞争壁垒",
+      "全球化拓展寻找增量市场"
+    ]
+  }
+}

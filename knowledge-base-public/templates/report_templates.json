@@ -1,0 +1,217 @@
+{
+  "title": "L4 报告生成层 - 电商竞品分析报告模板",
+  "description": "5类电商竞品分析报告模板，适配不同分析场景",
+  "version": "1.0.0",
+  "report_types": [
+    {
+      "type_id": "rt_001",
+      "type_name": "快讯简报 (Flash Briefing)",
+      "purpose": "日常竞品动态监控，快速传达重要变化",
+      "frequency": "每日/每周",
+      "target_audience": "管理层/产品团队/运营团队",
+      "max_length": "500字",
+      "template_structure": {
+        "section1_header": {
+          "title": "【快讯标题】XX平台发生XX变化",
+          "required_fields": [ "竞品名称", "事件类型", "影响等级（高/中/低）", "发生时间" ]
+        },
+        "section2_event_summary": {
+          "title": "事件摘要",
+          "template": "【{竞品}】于{日期}宣布{事件简述}。该事件属于{事件类型}，影响等级{等级}。",
+          "event_types": [ "战略变动", "产品发布", "价格调整", "融资并购", "监管事件", "人事变动", "技术突破" ]
+        },
+        "section3_impact_assessment": {
+          "title": "影响评估",
+          "template": "- 对我方影响：{正面/负面/中性}，{具体影响描述}\n- 对行业影响：{格局变化描述}\n- 需关注指标：{关键指标1}、{关键指标2}"
+        },
+        "section4_recommended_action": {
+          "title": "建议行动",
+          "template": "- 短期（1周内）：{行动建议}\n- 中期（1月内）：{行动建议}\n- 长期（3月内）：{行动建议}"
+        }
+      }
+    },
+    {
+      "type_id": "rt_002",
+      "type_name": "竞品对标报告 (Competitive Benchmarking)",
+      "purpose": "多维度竞品量化对比分析",
+      "frequency": "月度/季度",
+      "target_audience": "产品团队/管理层",
+      "max_length": "3000字",
+      "template_structure": {
+        "section1_executive_summary": {
+          "title": "执行摘要",
+          "template": "本报告对比分析{竞品A}、{竞品B}、{竞品C}的{分析维度}。核心发现：{发现1}；{发现2}；{发现3}。综合评分领先者为{领先者}（{分数}分），在{优势维度}维度表现突出。"
+        },
+        "section2_scoreboard": {
+          "title": "评分总览",
+          "template": "| 竞品 | 规模增长 | 货币化 | 用户粘性 | 履约 | 内容生态 | 商家生态 | 技术创新 | 品牌信任 | 总分 |\n|------|----------|--------|----------|------|----------|----------|----------|----------|------|"
+        },
+        "section3_dimension_deep_dive": {
+          "title": "维度深度分析",
+          "template_per_dimension": "### {维度名}（权重{权重}）\n- 行业基准：{基准描述}\n- 竞品对比：{A评分} vs {B评分} vs {C评分}\n- 关键差距：{差距描述}\n- 评分依据：{锚定描述}\n",
+          "dimensions_order": [ "market_scale", "monetization", "user_engagement", "logistics_fulfillment", "content_ecosystem", "merchant_ecosystem", "tech_innovation", "brand_trust" ]
+        },
+        "section4_radar_chart": {
+          "title": "雷达图分析",
+          "description": "生成8维度雷达图可视化对比"
+        },
+        "section5_gap_analysis": {
+          "title": "差距分析",
+          "template": "### 我方领先维度\n- {维度}：领先{领先分}分，优势原因：{原因}\n\n### 我方落后维度\n- {维度}：落后{落后分}分，追赶建议：{建议}\n"
+        },
+        "section6_action_plan": {
+          "title": "行动建议",
+          "template": "- 保持优势：{维度1}（投入{预算}，目标{目标值}）\n- 重点追赶：{维度2}（投入{预算}，目标{目标值}）\n- 监控风险：{维度3}（预警阈值{阈值}）"
+        }
+      }
+    },
+    {
+      "type_id": "rt_003",
+      "type_name": "战略分析报告 (Strategic Analysis)",
+      "purpose": "深度战略分析，含SWOT/波特五力/竞争格局",
+      "frequency": "季度/年度",
+      "target_audience": "高管/战略团队",
+      "max_length": "8000字",
+      "template_structure": {
+        "section1_market_overview": {
+          "title": "市场概览",
+          "content_items": [ "市场规模及增速", "渗透率及天花板", "关键趋势判断", "监管环境变化" ]
+        },
+        "section2_competitive_landscape": {
+          "title": "竞争格局",
+          "content_items": [ "市场份额分布", "竞争态势演变", "进入壁垒分析", "关键成功因素" ]
+        },
+        "section3_porter_five_forces": {
+          "title": "波特五力分析",
+          "template": "| 力量 | 评分(1-10) | 趋势 | 关键变化 |\n|------|-----------|------|----------|",
+          "forces": [ "买方议价能力", "卖方议价能力", "新进入者威胁", "替代品威胁", "现有竞争强度" ]
+        },
+        "section4_swot_analysis": {
+          "title": "SWOT分析",
+          "template": {
+            "S": "优势（内部/正面）：\n- {优势1}\n- {优势2}\n- {优势3}",
+            "W": "劣势（内部/负面）：\n- {劣势1}\n- {劣势2}",
+            "O": "机会（外部/正面）：\n- {机会1}\n- {机会2}",
+            "T": "威胁（外部/负面）：\n- {威胁1}\n- {威胁2}"
+          }
+        },
+        "section5_cross_matrix": {
+          "title": "SWOT交叉策略矩阵",
+          "strategies": {
+            "SO": "利用优势抓住机会：{策略1}、{策略2}",
+            "ST": "利用优势应对威胁：{策略1}、{策略2}",
+            "WO": "利用机会弥补劣势：{策略1}、{策略2}",
+            "WT": "防御性策略：{策略1}、{策略2}"
+          }
+        },
+        "section6_scenario_planning": {
+          "title": "情景规划",
+          "scenarios": [
+            { "name": "乐观情景", "probability": "20%", "triggers": "{触发条件}", "impact": "{影响描述}", "strategy": "{应对策略}" },
+            { "name": "基准情景", "probability": "60%", "triggers": "{触发条件}", "impact": "{影响描述}", "strategy": "{应对策略}" },
+            { "name": "悲观情景", "probability": "20%", "triggers": "{触发条件}", "impact": "{影响描述}", "strategy": "{应对策略}" }
+          ]
+        },
+        "section7_strategic_recommendations": {
+          "title": "战略建议",
+          "recommendation_framework": "P0/P1/P2优先级矩阵",
+          "template": "| 优先级 | 战略举措 | 预期效果 | 所需资源 | 时间线 | 负责方 |\n|--------|----------|----------|----------|--------|--------|"
+        }
+      }
+    },
+    {
+      "type_id": "rt_004",
+      "type_name": "行业研究报告 (Industry Research)",
+      "purpose": "覆盖行业全景的深度研究，用于立项/投资/战略决策",
+      "frequency": "年度/按需",
+      "target_audience": "高管/投资人/战略团队",
+      "max_length": "15000字",
+      "template_structure": {
+        "section1_abstract": {
+          "title": "摘要",
+          "template": "本报告研究{行业名称}行业。市场规模{规模}，增速{增速}，预计到{年份}达到{预测规模}。行业处于{生命周期阶段}，竞争格局{格局描述}。投资建议：{建议}。"
+        },
+        "section2_industry_definition": {
+          "title": "行业定义与范围",
+          "content": [ "行业定义", "细分赛道划分", "产业链上下游" ]
+        },
+        "section3_market_size": {
+          "title": "市场规模",
+          "content": [ "历史规模数据", "增长驱动因素", "市场规模预测", "渗透率分析" ]
+        },
+        "section4_competitive_map": {
+          "title": "竞争地图",
+          "template": "生成象限图：X轴为市场份额，Y轴为增速，标注所有竞争者位置"
+        },
+        "section5_player_profiles": {
+          "title": "主要玩家画像",
+          "template_per_player": "### {玩家名称}\n- 定位：{市场定位}\n- GMV/收入：{财务数据}\n- 核心模式：{模式描述}\n- 优势：{S}\n- 劣势：{W}\n- 战略动向：{最新动态}"
+        },
+        "section6_tech_trends": {
+          "title": "技术趋势",
+          "template_per_trend": "- {趋势名称}：{成熟度}，{影响程度}，{代表企业}"
+        },
+        "section7_regulatory": {
+          "title": "监管环境",
+          "content": [ "现行监管政策", "政策趋势判断", "合规风险清单" ]
+        },
+        "section8_investment_opportunities": {
+          "title": "投资机会",
+          "template": "| 赛道 | 吸引力 | 成熟度 | 风险 | 建议 |\n|------|--------|--------|------|------|"
+        }
+      }
+    },
+    {
+      "type_id": "rt_005",
+      "type_name": "战术执行卡 (Tactical Playbook)",
+      "purpose": "面向销售/运营团队的行动指南",
+      "frequency": "按需",
+      "target_audience": "销售团队/BD/运营",
+      "max_length": "1000字",
+      "template_structure": {
+        "section1_opportunity_card": {
+          "title": "机会卡",
+          "template": {
+            "opportunity": "{竞品}在{领域}存在明显弱点",
+            "target_customer": "{目标客户群}",
+            "value_proposition": "我们的{优势}正好解决客户痛点",
+            "expected_deal_size": "{预期成交金额}",
+            "win_probability": "{赢单概率}"
+          }
+        },
+        "section2_objection_response": {
+          "title": "异议应对",
+          "template_per_objection": "**客户异议**：'{常见异议}'\n**应对话术**：'{标准话术}'\n**支撑数据**：{数据点}\n**成功案例**：{案例}"
+        },
+        "section3_competitive_battlecard": {
+          "title": "竞争对比卡",
+          "template": "| 维度 | 我方 | {竞品} | 话术要点 |\n|------|------|--------|----------|"
+        },
+        "section4_elevator_pitch": {
+          "title": "电梯演讲",
+          "template": "面对{场景}，用30秒这样说：{演讲稿}"
+        },
+        "section5_next_steps": {
+          "title": "下一步行动",
+          "template": "- [ ] {行动项1}（负责人：{姓名}，截止：{日期}）\n- [ ] {行动项2}（负责人：{姓名}，截止：{日期}）"
+        }
+      }
+    }
+  ],
+  "report_generation_config": {
+    "auto_generation_triggers": [
+      { "trigger": "竞品发布重大产品", "report_type": "rt_001" },
+      { "trigger": "季度财报季", "report_type": "rt_002" },
+      { "trigger": "战略变动/融资/并购", "report_type": "rt_003" },
+      { "trigger": "新行业进入/年度规划", "report_type": "rt_004" },
+      { "trigger": "销售请求", "report_type": "rt_005" }
+    ],
+    "formatting_rules": {
+      "language": "中文为主，英文术语保留",
+      "numbers": "保留2位小数，百分比精确到0.1%",
+      "currency": "默认人民币亿元，跨境电商用亿美元",
+      "dates": "YYYY-MM-DD格式",
+      "data_source_citation": "每个数据点须标注来源和日期"
+    }
+  }
+}

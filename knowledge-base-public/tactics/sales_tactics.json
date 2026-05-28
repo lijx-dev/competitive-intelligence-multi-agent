@@ -1,0 +1,220 @@
+{
+  "title": "电商竞品分析战术卡模板",
+  "description": "电商场景下的竞品销售战术卡，用于快速生成竞品分析结论和策略建议",
+  "version": "1.0.0",
+  "tactic_card_templates": {
+    "competitive_positioning": {
+      "card_name": "竞争定位卡",
+      "template": {
+        "target_platform": "[电商平台名称]",
+        "industry_segment": "[直播电商/社交电商/跨境电商/即时零售]",
+        "competitive_level": "[领导者/挑战者/追随者/利基者]",
+        "primary_competitors": ["竞品1", "竞品2", "竞品3"],
+        "key_differentiator": "[差异化核心点]",
+        "target_user_segment": "[核心目标用户群]",
+        "price_band": "[高端/中高端/中端/大众/极致性价比]",
+        "market_share_position": "[市场份额及趋势]",
+        "strategic_goal": "[未来1-2年战略目标]"
+      }
+    },
+    "strengths_analysis": {
+      "card_name": "优势拆解卡",
+      "template": {
+        "core_strength": "[核心竞争优势]",
+        "strength_category": "[流量/供应链/技术/品牌/运营/资本]",
+        "evidence": ["数据支撑1", "数据支撑2"],
+        "sustainability": "[优势可持续时间评估]",
+        "replicability": "[竞品复制难度：高/中/低]",
+        "impact_score": "[1-10分影响力评分]",
+        "leveraging_strategy": "[如何放大优势的具体策略]"
+      }
+    },
+    "weaknesses_exploitation": {
+      "card_name": "弱点利用卡",
+      "template": {
+        "identified_weakness": "[竞品核心弱点]",
+        "weakness_category": "[用户体验/履约/商家生态/技术/合规]",
+        "evidence": ["用户反馈/数据表现/行业报告"],
+        "exploitation_opportunity": "[我方如何利用该弱点]",
+        "tactical_action": "[具体战术行动]",
+        "expected_impact": "[预期效果量化]",
+        "timeline": "[执行时间窗口]",
+        "risk_assessment": "[执行风险]"
+      }
+    },
+    "opportunity_capture": {
+      "card_name": "机会捕捉卡",
+      "template": {
+        "market_opportunity": "[识别出的市场机会]",
+        "opportunity_type": "[需求空白/政策利好/技术变革/竞品失误]",
+        "market_size_estimate": "[市场规模估算]",
+        "time_window": "[机会窗口期]",
+        "resource_requirement": "[所需资源投入]",
+        "competitive_threats": "[其他竞争者可能参与]",
+        "recommended_action": "[建议采取的行动]",
+        "success_metrics": "[成功衡量指标]"
+      }
+    },
+    "threat_mitigation": {
+      "card_name": "威胁应对卡",
+      "template": {
+        "identified_threat": "[识别的威胁]",
+        "threat_type": "[竞品进攻/政策变化/技术颠覆/市场萎缩]",
+        "threat_severity": "[致命/严重/中等/轻微]",
+        "probability": "[发生概率：高/中/低]",
+        "early_warning_signals": ["预警信号1", "预警信号2"],
+        "defensive_strategy": "[防守策略]",
+        "contingency_plan": "[应急预案]",
+        "owner": "[负责团队]"
+      }
+    }
+  },
+  "objection_handling_playbook": {
+    "title": "电商竞品异议处理话术库",
+    "scenarios": [
+      {
+        "scenario_id": "price_comparison",
+        "scenario": "价格对比质疑",
+        "common_objections": [
+          "你们的商品价格比拼多多贵太多了",
+          "淘宝同款比你便宜XX元",
+          "竞品平台补贴后价格更低"
+        ],
+        "response_framework": "ACKNOWLEDGE + REFRAME + VALUE + PROOF",
+        "responses": [
+          {
+            "response_id": "price_acknowledge",
+            "tactic": "先认同再转化",
+            "script": "您观察得很敏锐。确实在某些单品上我们的价格可能不是全网最低，因为我们的定价策略是基于[品质保障/正品保证/售后服务]的综合价值。让我帮您算一笔账...",
+            "key_points": [ "不否认价格差异", "引导看综合成本", "强调差异化价值" ]
+          },
+          {
+            "response_id": "price_reframe",
+            "tactic": "重新框定",
+            "script": "如果我们只看价格，那所有平台都应该卖最便宜的产品。但实际上，真正聪明的消费者更看重[正品率/售后保障/物流速度/退换货体验]。比如我们的正品率是99.9%，而某些平台的假货投诉率高达X%...",
+            "key_points": [ "改变比较维度", "用数据说话", "引入风险成本" ]
+          },
+          {
+            "response_id": "price_value_bundle",
+            "tactic": "价值组合",
+            "script": "如果您考虑综合价值，我们平台提供[包邮/退换货免运费/延保服务/积分体系]，这些附加价值加起来远超价格差异。以年消费X元计算，我们的综合价值高出竞品XX元。",
+            "key_points": [ "量化附加价值", "计算总拥有成本", "场景化说服" ]
+          }
+        ]
+      },
+      {
+        "scenario_id": "logistics_comparison",
+        "scenario": "物流时效对比",
+        "common_objections": [
+          "京东当天就能到，你们要3天",
+          "美团30分钟就能送到",
+          "竞品平台物流比你快多了"
+        ],
+        "responses": [
+          {
+            "response_id": "logistics_strength",
+            "tactic": "强调自有优势",
+            "script": "您说得对，京东的物流确实行业领先。不过我们在[次日达覆盖/特定区域时效/配送成本效率]方面有自己的优势。比如在XX地区，我们的次日达率也达到了XX%，而且我们提供的[免运费门槛/配送服务]更灵活...",
+            "key_points": [ "承认竞品优势", "找到相对优势点", "提供替代方案" ]
+          },
+          {
+            "response_id": "logistics_tradeoff",
+            "tactic": "权衡分析",
+            "script": "物流时效确实重要。但我可以坦诚地说，我们在[商品丰富度/价格优势/内容体验]方面有明显优势。如果您不急需，多等1-2天换取[更好的价格/更全的SKU]可能是更划算的选择。当然，急用的话我们也有[极速达/同城配送]选项。",
+            "key_points": [ "坦诚说明取舍", "提供选项", "让用户决策" ]
+          }
+        ]
+      },
+      {
+        "scenario_id": "gmv_scale_doubt",
+        "scenario": "规模/GMV质疑",
+        "common_objections": [
+          "你们GMV才这么点，淘宝都万亿了",
+          "用户量差太远了，怎么竞争",
+          "小平台不靠谱，担心售后"
+        ],
+        "responses": [
+          {
+            "response_id": "scale_niche",
+            "tactic": "利基优势",
+            "script": "您说得对，我们的体量确实不如巨头。但正因如此，我们能提供更[个性化的服务/更精准的选品/更灵活的运营]。我们在[细分品类/特定人群]领域是NO.1。而且我们正在高速增长——年增长率XX%，增速远超行业平均。",
+            "key_points": [ "转化规模劣势为服务优势", "突出细分领先", "用增速证明潜力" ]
+          },
+          {
+            "response_id": "scale_growth",
+            "tactic": "增长叙事",
+            "script": "规模不是唯一的衡量标准。回顾一下，3年前拼多多也只有几百亿GMV，但现在已经4万亿+。我们目前处于同样的高速增长期——DAU增长XX%，复购率XX%，这些指标甚至超过了拼多多同期的表现。增长的质量比当前的规模更重要。",
+            "key_points": [ "类比成功案例", "用增长率证明", "强调增长质量" ]
+          }
+        ]
+      },
+      {
+        "scenario_id": "merchant_ecosystem_concern",
+        "scenario": "商家生态担忧",
+        "common_objections": [
+          "你们平台商家太少了，没什么选择",
+          "大牌都不在你们这开店",
+          "听说你们扣点很高，商家都不愿意来"
+        ],
+        "responses": [
+          {
+            "response_id": "merchant_quality",
+            "tactic": "质量>数量",
+            "script": "我们的商家策略是[精选/严选/品质优先]，而不是追求数量。我们目前入驻的XXX家商家都是经过严格筛选的，正品率99%+。相比之下，某些平台虽然有百万商家，但品质参差不齐，消费者反而要花更多时间筛选。",
+            "key_points": [ "转化数量为质量优势", "强调筛选标准", "减少决策成本" ]
+          },
+          {
+            "response_id": "merchant_growth",
+            "tactic": "增长叙事",
+            "script": "我们的商家数量正在快速增长——2024年已新增XXX个品牌入驻，包括[列举知名品牌]。我们的[商家扶持政策/流量扶持计划/零佣金政策]吸引了大量优质商家。预计到年底商家数量将增长XX%。",
+            "key_points": [ "展示增长数据", "列举标杆案例", "说明扶持政策" ]
+          }
+        ]
+      },
+      {
+        "scenario_id": "content_ecosystem_doubt",
+        "scenario": "内容生态质疑",
+        "common_objections": [
+          "你们的内容做得不如抖音",
+          "没有直播带货，不够吸引人",
+          "社区氛围不如小红书"
+        ],
+        "responses": [
+          {
+            "response_id": "content_differentiation",
+            "tactic": "差异化定位",
+            "script": "每个平台都有自己的内容特色。我们的内容策略不是模仿抖音或小红书，而是打造[专业/真实/实用]的内容生态。我们的[买手/达人/用户]更专注于[深度测评/真实体验/专业建议]，这对于做出购买决策更有帮助。数据显示，我们用户的[购买转化率/退货率]都优于纯娱乐型内容平台。",
+            "key_points": [ "拒绝直接对比", "定义独特价值", "用数据佐证" ]
+          },
+          {
+            "response_id": "content_evolution",
+            "tactic": "进化叙事",
+            "script": "内容生态是我们的战略重点。过去6个月，我们[内容创作者增长XX%/直播场次增长XX%/UGC内容量增长XX%]。我们已经与[知名达人/KOL/MCN]建立了深度合作。内容到购买的转化率已经达到XX%，高于行业平均。",
+            "key_points": [ "展示增长数据", "引入标杆合作", "量化转化效果" ]
+          }
+        ]
+      }
+    ]
+  },
+  "elevator_pitches": {
+    "title": "电梯演讲模板（60秒竞品分析版）",
+    "templates": [
+      {
+        "context": "向投资人介绍电商竞品分析结论",
+        "template": "在[industry_segment]领域，我们分析了[competitor_count]个核心竞品的[metric_count]个维度。关键发现：[key_finding_1]和[key_finding_2]。[target_competitor]虽然[strength_description]，但在[weakness_area]存在明显短板，这给了我们在[opportunity_area]切入的机会。预计[time_horizon]内可获取[market_share_target]的市场份额。"
+      },
+      {
+        "context": "向管理层汇报竞品威胁",
+        "template": "[competitor_name]正在通过[key_strategy]快速侵蚀我们的[target_segment]市场份额，过去[time_period]已经从[share_from]%增长到[share_to]%。他们的[core_advantage]对我们构成了[threat_level]威胁。建议我们立即在[response_area_1]和[response_area_2]采取防御措施，预计投入[resource_requirement]，可在[effect_timeline]内稳住市场份额。"
+      },
+      {
+        "context": "向产品团队输出竞品分析结论",
+        "template": "对标[competitor_name]的[feature_name]功能，我们评估其[score]分（满分10分）。核心优势是[advantage_1]和[advantage_2]，但在[gap_area]存在不足。建议我们[recommendation_1]，预计可在[launch_timeline]上线，达到[expected_score]分水平，超越竞品的[surpass_area]。"
+      },
+      {
+        "context": "向销售团队输出竞品应对策略",
+        "template": "面对[competitor_name]，核心应对策略是[key_strategy]。当客户提出[common_objection]时，使用[value_proposition]话术回应。我们的三个核心差异化优势是：[advantage_1]、[advantage_2]、[advantage_3]。预计这套策略可提升[win_rate_improvement]的赢单率。"
+      }
+    ]
+  }
+}

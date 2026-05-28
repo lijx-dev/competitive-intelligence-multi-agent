@@ -1,0 +1,4 @@
+# Go build artifacts
+gateway
+gateway.exe
+go.sum

@@ -1,0 +1,431 @@
+{
+  "title": "电商行业核心术语表（50词）",
+  "description": "电商竞品分析必备的50个核心术语，含中英文对照、定义和应用场景",
+  "version": "1.0.0",
+  "glossary": [
+    {
+      "term_cn": "商品交易总额",
+      "term_en": "Gross Merchandise Volume (GMV)",
+      "definition": "一定时期内平台所有成交订单的总金额，包含未付款和已退货订单",
+      "usage": "衡量电商平台规模最核心的指标",
+      "example": "淘宝天猫2023年GMV约8万亿人民币",
+      "category": "财务指标"
+    },
+    {
+      "term_cn": "货币化率",
+      "term_en": "Take Rate",
+      "definition": "平台收入占GMV的比例，计算公式为 平台收入 / GMV × 100%",
+      "usage": "衡量平台将流量变现的效率",
+      "example": "阿里国内电商take rate约4.5%",
+      "category": "财务指标"
+    },
+    {
+      "term_cn": "每用户平均收入",
+      "term_en": "Average Revenue Per User (ARPU)",
+      "definition": "平台总收入除以活跃用户数，反映用户价值",
+      "usage": "对比不同平台的用户价值挖掘能力",
+      "example": "阿里年ARPU约900元，拼多多约2400元",
+      "category": "财务指标"
+    },
+    {
+      "term_cn": "客单价",
+      "term_en": "Average Order Value (AOV)",
+      "definition": "平均每笔订单的交易金额，计算公式为 GMV / 订单数",
+      "usage": "衡量用户消费能力和平台定位",
+      "example": "京东客单价约200元，拼多多约40元",
+      "category": "财务指标"
+    },
+    {
+      "term_cn": "日活跃用户",
+      "term_en": "Daily Active Users (DAU)",
+      "definition": "一天内至少打开一次App的独立用户数",
+      "usage": "衡量用户活跃度和平台粘性",
+      "example": "抖音DAU超6亿",
+      "category": "用户指标"
+    },
+    {
+      "term_cn": "月活跃用户",
+      "term_en": "Monthly Active Users (MAU)",
+      "definition": "一个月内至少打开一次App的独立用户数",
+      "usage": "衡量用户基数规模",
+      "example": "淘宝MAU约9亿",
+      "category": "用户指标"
+    },
+    {
+      "term_cn": "DAU/MAU比值",
+      "term_en": "DAU/MAU Ratio",
+      "definition": "日活除以月活的比例，反映用户使用频率和粘性",
+      "usage": "衡量产品粘性和用户习惯养成程度",
+      "example": "抖音DAU/MAU约0.45，拼多多约0.28",
+      "category": "用户指标"
+    },
+    {
+      "term_cn": "年活跃买家",
+      "term_en": "Annual Active Buyers (AAB)",
+      "definition": "过去12个月内至少完成一笔交易的独立用户数",
+      "usage": "衡量电商平台的有效用户规模",
+      "example": "拼多多2023年活跃买家7.6亿",
+      "category": "用户指标"
+    },
+    {
+      "term_cn": "净推荐值",
+      "term_en": "Net Promoter Score (NPS)",
+      "definition": "用户推荐意愿指标，计算公式为推荐者% - 贬损者%",
+      "usage": "衡量用户忠诚度和口碑",
+      "example": "京东NPS约55，行业领先",
+      "category": "用户指标"
+    },
+    {
+      "term_cn": "用户生命周期价值",
+      "term_en": "Lifetime Value (LTV)",
+      "definition": "单个用户在整个生命周期内为平台贡献的总收入",
+      "usage": "指导获客成本预算和用户运营策略",
+      "example": "LTV/CAC > 3:1为健康比例",
+      "category": "用户指标"
+    },
+    {
+      "term_cn": "获客成本",
+      "term_en": "Customer Acquisition Cost (CAC)",
+      "definition": "获取一个新用户的平均成本",
+      "usage": "评估营销效率和增长可持续性",
+      "example": "某平台CAC约100元/人",
+      "category": "用户指标"
+    },
+    {
+      "term_cn": "转化率",
+      "term_en": "Conversion Rate",
+      "definition": "完成目标行为的用户占总访问用户的比例",
+      "usage": "衡量流量变现效率",
+      "example": "电商平均转化率2-5%，直播电商3-8%",
+      "category": "运营指标"
+    },
+    {
+      "term_cn": "复购率",
+      "term_en": "Repurchase Rate / Retention Rate",
+      "definition": "在一定周期内再次购买的客户比例",
+      "usage": "衡量用户忠诚度和产品质量",
+      "example": "京东Plus会员复购率超80%",
+      "category": "运营指标"
+    },
+    {
+      "term_cn": "退货率",
+      "term_en": "Return Rate",
+      "definition": "退货订单占总订单的比例",
+      "usage": "衡量商品质量和用户满意度",
+      "example": "直播电商退货率30-50%，传统电商10-20%",
+      "category": "运营指标"
+    },
+    {
+      "term_cn": "库存单位",
+      "term_en": "Stock Keeping Unit (SKU)",
+      "definition": "库存管理的最小单位，一款商品的一个规格即为一个SKU",
+      "usage": "衡量商品丰富度",
+      "example": "京东SKU超1000万",
+      "category": "运营指标"
+    },
+    {
+      "term_cn": "库存周转天数",
+      "term_en": "Days of Inventory Outstanding (DIO)",
+      "definition": "从采购商品到售出所需的平均天数",
+      "usage": "衡量库存管理效率",
+      "example": "京东库存周转天数约30天",
+      "category": "运营指标"
+    },
+    {
+      "term_cn": "千人成本",
+      "term_en": "Cost Per Mille (CPM)",
+      "definition": "广告展示1000次的成本",
+      "usage": "评估品牌广告投放效率",
+      "example": "信息流广告CPM约20-50元",
+      "category": "营销指标"
+    },
+    {
+      "term_cn": "单次点击成本",
+      "term_en": "Cost Per Click (CPC)",
+      "definition": "广告被点击一次的平均成本",
+      "usage": "评估效果广告效率",
+      "example": "电商搜索广告CPC约1-5元",
+      "category": "营销指标"
+    },
+    {
+      "term_cn": "投资回报率",
+      "term_en": "Return on Investment (ROI)",
+      "definition": "投入与产出的比值，计算公式为（收入-成本）/成本 × 100%",
+      "usage": "评估营销和运营投入效率",
+      "example": "直播带货ROI通常在1:3到1:8之间",
+      "category": "营销指标"
+    },
+    {
+      "term_cn": "点击通过率",
+      "term_en": "Click-Through Rate (CTR)",
+      "definition": "广告/内容被点击次数除以展示次数的比率",
+      "usage": "衡量内容/广告吸引力",
+      "example": "推荐位CTR约3-8%",
+      "category": "营销指标"
+    },
+    {
+      "term_cn": "履约成本率",
+      "term_en": "Fulfillment Cost Ratio",
+      "definition": "仓储+配送+退货处理成本占收入的百分比",
+      "usage": "衡量履约效率",
+      "example": "京东履约成本率约5.8%",
+      "category": "物流指标"
+    },
+    {
+      "term_cn": "前置仓",
+      "term_en": "Front Warehouse / Dark Store",
+      "definition": "设在城市社区周边的小型仓库，覆盖3-5公里范围的即时配送",
+      "usage": "即时零售的核心基础设施",
+      "example": "叮咚买菜前置仓约450个",
+      "category": "物流模式"
+    },
+    {
+      "term_cn": "最后一公里",
+      "term_en": "Last Mile Delivery",
+      "definition": "商品从配送站到消费者手中的最后一段配送",
+      "usage": "物流成本和体验的关键环节",
+      "example": "最后一公里占物流总成本50%+",
+      "category": "物流指标"
+    },
+    {
+      "term_cn": "全托管模式",
+      "term_en": "Full-Service Model",
+      "definition": "跨境电商平台包揽选品、定价、物流、售后，商家只负责供货",
+      "usage": "降低商家出海门槛",
+      "example": "Temu全托管模式让工厂零门槛出海",
+      "category": "商业模式"
+    },
+    {
+      "term_cn": "半托管模式",
+      "term_en": "Semi-Service Model",
+      "definition": "平台负责流量和营销，商家自主定价和发货",
+      "usage": "给予商家更多自主权",
+      "example": "2024年Temu、SHEIN均推出半托管模式",
+      "category": "商业模式"
+    },
+    {
+      "term_cn": "消费者直连制造",
+      "term_en": "Customer-to-Manufacturer (C2M)",
+      "definition": "消费者需求直接驱动工厂生产，去除中间环节",
+      "usage": "降低供应链成本，实现极致性价比",
+      "example": "拼多多直连1000+产业带",
+      "category": "商业模式"
+    },
+    {
+      "term_cn": "直接面向消费者",
+      "term_en": "Direct-to-Consumer (DTC)",
+      "definition": "品牌绕过中间渠道，直接通过自有渠道销售给消费者",
+      "usage": "品牌方掌控用户数据和品牌体验",
+      "example": "SHEIN是典型的DTC跨境快时尚品牌",
+      "category": "商业模式"
+    },
+    {
+      "term_cn": "在线营销解决方案收入",
+      "term_en": "Online Marketing Solutions (OMS)",
+      "definition": "电商平台向商家收取的广告费和营销服务费",
+      "usage": "电商平台最主要的收入来源之一",
+      "example": "阿里广告收入约3000亿元",
+      "category": "财务指标"
+    },
+    {
+      "term_cn": "佣金收入",
+      "term_en": "Commission Revenue",
+      "definition": "平台按交易额比例向商家收取的服务费",
+      "usage": "与take rate直接相关的收入来源",
+      "example": "天猫佣金率2-5%",
+      "category": "财务指标"
+    },
+    {
+      "term_cn": "在线零售渗透率",
+      "term_en": "Online Retail Penetration Rate",
+      "definition": "线上零售额占社会消费品零售总额的百分比",
+      "usage": "衡量电商行业发展成熟度",
+      "example": "中国电商渗透率约27%",
+      "category": "市场指标"
+    },
+    {
+      "term_cn": "社交电商",
+      "term_en": "Social E-commerce",
+      "definition": "通过社交关系和内容分享驱动商品销售的电商模式",
+      "usage": "利用社交裂变降低获客成本",
+      "example": "拼多多、小红书都是社交电商代表",
+      "category": "电商模式"
+    },
+    {
+      "term_cn": "直播电商",
+      "term_en": "Livestream E-commerce",
+      "definition": "通过直播形式展示和销售商品的电商模式",
+      "usage": "内容驱动的新型电商形态",
+      "example": "2023年中国直播电商GMV约4.8万亿",
+      "category": "电商模式"
+    },
+    {
+      "term_cn": "兴趣电商",
+      "term_en": "Interest-based E-commerce",
+      "definition": "基于用户兴趣推荐内容并激发购买需求的电商模式",
+      "usage": "抖音电商的核心概念",
+      "example": "抖音电商提出兴趣电商，与传统搜索电商形成差异",
+      "category": "电商模式"
+    },
+    {
+      "term_cn": "货架电商",
+      "term_en": "Shelves E-commerce",
+      "definition": "传统的搜索+分类浏览模式的电商形态",
+      "usage": "与内容/直播电商相对的概念",
+      "example": "淘宝搜索+分类是典型的货架电商",
+      "category": "电商模式"
+    },
+    {
+      "term_cn": "即时零售",
+      "term_en": "Instant Retail / Quick Commerce",
+      "definition": "以小时/分钟为配送时效的零售模式，通常覆盖3-5公里范围",
+      "usage": "满足即时消费需求的新兴零售业态",
+      "example": "美团闪购、京东到家属于即时零售",
+      "category": "电商模式"
+    },
+    {
+      "term_cn": "私域流量",
+      "term_en": "Private Traffic",
+      "definition": "品牌/商家可直接触达、反复使用、无需付费的用户流量",
+      "usage": "降低获客成本，提升复购率",
+      "example": "微信群、企业微信、品牌小程序是私域流量的载体",
+      "category": "流量概念"
+    },
+    {
+      "term_cn": "公域流量",
+      "term_en": "Public Traffic",
+      "definition": "需要通过付费或算法获取的平台公共流量",
+      "usage": "获客的主要流量来源",
+      "example": "淘宝搜索、抖音推荐位是公域流量",
+      "category": "流量概念"
+    },
+    {
+      "term_cn": "种草",
+      "term_en": "Seed Planting / Product Seeding",
+      "definition": "通过内容分享激发用户对商品的兴趣和购买欲望",
+      "usage": "社交电商的核心营销手段",
+      "example": "小红书以种草能力闻名",
+      "category": "营销术语"
+    },
+    {
+      "term_cn": "拔草",
+      "term_en": "Conversion / Harvest",
+      "definition": "用户在被种草后完成购买的行为",
+      "usage": "种草到拔草的闭环是内容电商的核心",
+      "example": "直播间的限时秒杀是拔草的关键场景",
+      "category": "营销术语"
+    },
+    {
+      "term_cn": "供应链柔性",
+      "term_en": "Supply Chain Flexibility",
+      "definition": "供应链快速响应市场需求变化的能力",
+      "usage": "快时尚和跨境电商的关键竞争力",
+      "example": "SHEIN的小单快返模式实现极致柔性",
+      "category": "供应链"
+    },
+    {
+      "term_cn": "小单快返",
+      "term_en": "Small Batch Quick Return",
+      "definition": "首批小批量生产测试市场反应，快速追加爆款订单的模式",
+      "usage": "降低库存风险，提升上新速度",
+      "example": "SHEIN首批仅100-200件，7天从设计到上架",
+      "category": "供应链"
+    },
+    {
+      "term_cn": "产业带",
+      "term_en": "Industrial Belt / Manufacturing Cluster",
+      "definition": "某一品类生产企业集中分布的地理区域",
+      "usage": "电商直连供应链的核心概念",
+      "example": "义乌小商品、广州服装、泉州鞋服是典型产业带",
+      "category": "供应链"
+    },
+    {
+      "term_cn": "人货场",
+      "term_en": "People-Product-Place Framework",
+      "definition": "电商运营的三个核心要素：用户（人）、商品（货）、场景（场）",
+      "usage": "分析电商竞争力的基础框架",
+      "example": "直播电商重构了人货场的连接方式",
+      "category": "分析框架"
+    },
+    {
+      "term_cn": "流量漏斗",
+      "term_en": "Traffic Funnel",
+      "definition": "用户从曝光到点击到转化到复购的逐级递减过程",
+      "usage": "分析各环节转化效率",
+      "example": "曝光→点击（CTR）→加购→下单→支付→复购",
+      "category": "分析框架"
+    },
+    {
+      "term_cn": "飞轮效应",
+      "term_en": "Flywheel Effect",
+      "definition": "各业务要素相互增强、形成自循环增长动力的机制",
+      "usage": "描述平台的增长逻辑",
+      "example": "亚马逊飞轮：低价→流量→卖家→选品→更好的低价",
+      "category": "战略概念"
+    },
+    {
+      "term_cn": "网络效应",
+      "term_en": "Network Effect",
+      "definition": "平台用户越多，每个用户获得的价值越大的现象",
+      "usage": "解释平台型企业的护城河",
+      "example": "淘宝卖家越多→商品越全→买家越多→卖家更多",
+      "category": "战略概念"
+    },
+    {
+      "term_cn": "护城河",
+      "term_en": "Economic Moat",
+      "definition": "企业可持续抵御竞争、维持超额利润的能力",
+      "usage": "评估企业长期竞争力",
+      "example": "京东的物流网络是其核心护城河",
+      "category": "战略概念"
+    },
+    {
+      "term_cn": "交叉补贴",
+      "term_en": "Cross-subsidization",
+      "definition": "用盈利业务补贴亏损业务，以获取整体市场份额的策略",
+      "usage": "电商平台常见的竞争策略",
+      "example": "拼多多用百亿补贴高频品类引流，低频品类盈利",
+      "category": "战略概念"
+    },
+    {
+      "term_cn": "大数据杀熟",
+      "term_en": "Price Discrimination / Big Data Price Targeting",
+      "definition": "利用用户数据对不同用户展示不同价格的定价策略",
+      "usage": " controversial的定价策略，面临监管风险",
+      "example": "监管部门已明令禁止大数据杀熟行为",
+      "category": "合规概念"
+    },
+    {
+      "term_cn": "二选一",
+      "term_en": "Exclusive Dealing",
+      "definition": "平台要求商家只能在其平台上经营，不得入驻竞品",
+      "usage": "反垄断监管重点打击的行为",
+      "example": "阿里因二选一被市场监管总局罚款182亿元",
+      "category": "合规概念"
+    },
+    {
+      "term_cn": "反垄断",
+      "term_en": "Anti-monopoly",
+      "definition": "防止平台滥用市场支配地位的法律监管",
+      "usage": "中国电商平台面临的核心监管压力",
+      "example": "平台经济反垄断指南2021年发布",
+      "category": "合规概念"
+    },
+    {
+      "term_cn": "社区团购",
+      "term_en": "Community Group Buying",
+      "definition": "以社区为单位，团长组织拼团购买，次日送达自提的零售模式",
+      "usage": "下沉市场生鲜零售的重要模式",
+      "example": "多多买菜、美团优选是头部玩家",
+      "category": "电商模式"
+    },
+    {
+      "term_cn": "私域会员体系",
+      "term_en": "Membership Program",
+      "definition": "平台或品牌建立的付费/免费会员体系，提供专属权益",
+      "usage": "提升用户粘性和复购率",
+      "example": "京东Plus会员超3000万，88VIP超2500万",
+      "category": "用户运营"
+    }
+  ]
+}

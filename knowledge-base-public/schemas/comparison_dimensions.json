@@ -1,0 +1,354 @@
+{
+  "title": "电商竞品对比维度定义",
+  "description": "用于电商竞品分析的完整对比维度体系，支持L2/L3层RAG检索",
+  "version": "1.0.0",
+  "dimension_categories": [
+    {
+      "category_id": "market",
+      "category_name": "市场表现",
+      "weight": 0.20,
+      "dimensions": [
+        {
+          "dim_id": "market_gmv",
+          "dim_name": "GMV规模",
+          "description": "商品交易总额（Gross Merchandise Volume）",
+          "unit": "亿元人民币",
+          "data_type": "number",
+          "periodicity": [ "季度", "年度" ],
+          "importance": "critical",
+          "calculation": "统计期内平台所有成交订单的总金额（含未付款+已退货）"
+        },
+        {
+          "dim_id": "market_growth",
+          "dim_name": "GMV增长率",
+          "description": "同比增长率",
+          "unit": "%",
+          "data_type": "number",
+          "periodicity": [ "季度", "年度" ],
+          "importance": "critical"
+        },
+        {
+          "dim_id": "market_share",
+          "dim_name": "市场份额",
+          "description": "在目标市场中的交易占比",
+          "unit": "%",
+          "data_type": "number",
+          "importance": "critical"
+        },
+        {
+          "dim_id": "take_rate",
+          "dim_name": "货币化率",
+          "description": "平台从GMV中获取收入的比例，= 平台收入 / GMV",
+          "unit": "%",
+          "data_type": "number",
+          "benchmark": { "industry_avg": 3.0, "leader": 4.5, "min": 1.0 },
+          "importance": "critical"
+        },
+        {
+          "dim_id": "revenue",
+          "dim_name": "营业收入",
+          "description": "实际确认收入",
+          "unit": "亿元人民币",
+          "data_type": "number",
+          "importance": "high"
+        },
+        {
+          "dim_id": "profit_margin",
+          "dim_name": "净利润率",
+          "description": "净利率水平",
+          "unit": "%",
+          "data_type": "number",
+          "importance": "high"
+        }
+      ]
+    },
+    {
+      "category_id": "user",
+      "category_name": "用户指标",
+      "weight": 0.20,
+      "dimensions": [
+        {
+          "dim_id": "user_dau",
+          "dim_name": "DAU",
+          "description": "日活跃用户数",
+          "unit": "万人",
+          "data_type": "number",
+          "importance": "critical"
+        },
+        {
+          "dim_id": "user_mau",
+          "dim_name": "MAU",
+          "description": "月活跃用户数",
+          "unit": "万人",
+          "data_type": "number",
+          "importance": "critical"
+        },
+        {
+          "dim_id": "user_aab",
+          "dim_name": "年活跃买家数",
+          "description": "Annual Active Buyers",
+          "unit": "万人",
+          "data_type": "number",
+          "importance": "critical"
+        },
+        {
+          "dim_id": "user_arpu",
+          "dim_name": "ARPU",
+          "description": "每用户平均收入（Annual Revenue Per User）",
+          "unit": "元/年",
+          "data_type": "number",
+          "importance": "high"
+        },
+        {
+          "dim_id": "user_aov",
+          "dim_name": "客单价AOV",
+          "description": "Average Order Value，平均每笔订单金额",
+          "unit": "元",
+          "data_type": "number",
+          "importance": "high"
+        },
+        {
+          "dim_id": "user_frequency",
+          "dim_name": "购买频次",
+          "description": "年均下单次数",
+          "unit": "次/年",
+          "data_type": "number",
+          "importance": "high"
+        },
+        {
+          "dim_id": "user_retention_d7",
+          "dim_name": "7日留存率",
+          "description": "新用户7日后仍活跃的比例",
+          "unit": "%",
+          "data_type": "number",
+          "importance": "high"
+        },
+        {
+          "dim_id": "user_nps",
+          "dim_name": "NPS净推荐值",
+          "description": "用户推荐意愿指标",
+          "unit": "分(-100~100)",
+          "data_type": "number",
+          "importance": "medium"
+        }
+      ]
+    },
+    {
+      "category_id": "product",
+      "category_name": "产品与功能",
+      "weight": 0.15,
+      "dimensions": [
+        {
+          "dim_id": "prod_search",
+          "dim_name": "搜索体验",
+          "description": "搜索准确性、速度、结果丰富度",
+          "unit": "评分1-10",
+          "data_type": "number",
+          "importance": "high"
+        },
+        {
+          "dim_id": "prod_recommendation",
+          "dim_name": "推荐算法",
+          "description": "个性化推荐精准度",
+          "unit": "评分1-10",
+          "data_type": "number",
+          "importance": "high"
+        },
+        {
+          "dim_id": "prod_content",
+          "dim_name": "内容生态丰富度",
+          "description": "短视频/直播/图文等内容形态覆盖",
+          "unit": "评分1-10",
+          "data_type": "number",
+          "importance": "high"
+        },
+        {
+          "dim_id": "prod_ui_ux",
+          "dim_name": "UI/UX设计",
+          "description": "界面设计、交互体验",
+          "unit": "评分1-10",
+          "data_type": "number",
+          "importance": "medium"
+        },
+        {
+          "dim_id": "prod_ai_features",
+          "dim_name": "AI功能覆盖",
+          "description": "AI客服、AI选品、AI生成等能力",
+          "unit": "评分1-10",
+          "data_type": "number",
+          "importance": "high"
+        }
+      ]
+    },
+    {
+      "category_id": "merchant",
+      "category_name": "商家生态",
+      "weight": 0.10,
+      "dimensions": [
+        {
+          "dim_id": "merchant_count",
+          "dim_name": "活跃商家数",
+          "description": "平台上的活跃卖家数量",
+          "unit": "万家",
+          "data_type": "number",
+          "importance": "high"
+        },
+        {
+          "dim_id": "merchant_quality",
+          "dim_name": "商家质量",
+          "description": "品牌商家占比、官方旗舰店数量",
+          "unit": "评分1-10",
+          "data_type": "number",
+          "importance": "high"
+        },
+        {
+          "dim_id": "merchant_tools",
+          "dim_name": "商家工具完善度",
+          "description": "数据分析、营销工具、ERP等赋能工具",
+          "unit": "评分1-10",
+          "data_type": "number",
+          "importance": "medium"
+        },
+        {
+          "dim_id": "commission_rate",
+          "dim_name": "佣金率",
+          "description": "平台收取的交易佣金比例",
+          "unit": "%",
+          "data_type": "number",
+          "importance": "high"
+        }
+      ]
+    },
+    {
+      "category_id": "logistics",
+      "category_name": "履约能力",
+      "weight": 0.15,
+      "dimensions": [
+        {
+          "dim_id": "log_avg_time",
+          "dim_name": "平均配送时效",
+          "description": "下单到签收的平坅时间",
+          "unit": "小时",
+          "data_type": "number",
+          "importance": "critical"
+        },
+        {
+          "dim_id": "log_same_day",
+          "dim_name": "当日达覆盖率",
+          "description": "支持当日达的订单/区域占比",
+          "unit": "%",
+          "data_type": "number",
+          "importance": "high"
+        },
+        {
+          "dim_id": "log_next_day",
+          "dim_name": "次日达覆盖率",
+          "description": "支持次日达的订单/区域占比",
+          "unit": "%",
+          "data_type": "number",
+          "importance": "high"
+        },
+        {
+          "dim_id": "log_self_owned",
+          "dim_name": "自营物流覆盖度",
+          "description": "平台自营物流的覆盖能力",
+          "unit": "评分1-10",
+          "data_type": "number",
+          "importance": "medium"
+        },
+        {
+          "dim_id": "log_cost_ratio",
+          "dim_name": "履约成本率",
+          "description": "履约成本占收入比",
+          "unit": "%",
+          "data_type": "number",
+          "importance": "high"
+        }
+      ]
+    },
+    {
+      "category_id": "technology",
+      "category_name": "技术能力",
+      "weight": 0.10,
+      "dimensions": [
+        {
+          "dim_id": "tech_ai_ml",
+          "dim_name": "AI/ML能力",
+          "description": "人工智能与机器学习应用深度",
+          "unit": "评分1-10",
+          "data_type": "number",
+          "importance": "high"
+        },
+        {
+          "dim_id": "tech_cloud_infra",
+          "dim_name": "云基础设施",
+          "description": "云计算、弹性扩容能力",
+          "unit": "评分1-10",
+          "data_type": "number",
+          "importance": "medium"
+        },
+        {
+          "dim_id": "tech_data_platform",
+          "dim_name": "数据中台",
+          "description": "数据采集、处理、分析能力",
+          "unit": "评分1-10",
+          "data_type": "number",
+          "importance": "high"
+        },
+        {
+          "dim_id": "tech_rd_patents",
+          "dim_name": "技术专利数",
+          "description": "核心技术相关专利数量",
+          "unit": "件",
+          "data_type": "number",
+          "importance": "medium"
+        }
+      ]
+    },
+    {
+      "category_id": "brand",
+      "category_name": "品牌与口碑",
+      "weight": 0.10,
+      "dimensions": [
+        {
+          "dim_id": "brand_awareness",
+          "dim_name": "品牌知名度",
+          "description": "目标用户中的品牌认知度",
+          "unit": "评分1-10",
+          "data_type": "number",
+          "importance": "high"
+        },
+        {
+          "dim_id": "brand_trust",
+          "dim_name": "用户信任度",
+          "description": "正品保障、售后服务信任度",
+          "unit": "评分1-10",
+          "data_type": "number",
+          "importance": "high"
+        },
+        {
+          "dim_id": "brand_social_mention",
+          "dim_name": "社交声量",
+          "description": "社交媒体上的讨论热度和情感倾向",
+          "unit": "评分1-10",
+          "data_type": "number",
+          "importance": "medium"
+        }
+      ]
+    }
+  ],
+  "industry_specific_metrics": {
+    "直播电商": [
+      "直播间GMV", "直播观看人次", "直播转化率", "达人数量", "场均GMV", "直播时长", "互动率", "UV价值"
+    ],
+    "社交电商": [
+      "拼团参与率", "分享转化率", "社交裂变系数", "KOL覆盖率", "社区活跃度", "UGC内容量", "私域流量池规模"
+    ],
+    "跨境电商": [
+      "海外仓储面积", "跨境物流时效", "海关清关效率", "本地化SKU数", "汇率风险敞口", "VAT合规度", "多语言覆盖率"
+    ],
+    "即时零售": [
+      "30分钟达履约率", "前置仓数量", "骑手密度", "生鲜损耗率", "即时配送成本", "夜间配送覆盖率"
+    ]
+  }
+}

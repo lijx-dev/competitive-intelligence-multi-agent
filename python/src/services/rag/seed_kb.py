@@ -27,12 +27,10 @@ logger = logging.getLogger("seed_kb")
 def main():
     from src.services.rag.core import CompetitorRAG
 
-    # 默认 KB 路径
+    # 默认 KB 路径：新公开RAG知识库目录
     default_kb = (
         project_root.parent  # 项目根
-        / "产品经理汇报报告"
-        / "02_模块划分与启动包_3人团队"
-        / "ecommerce_kb"
+        / "knowledge-base-public"
     )
     kb_path = sys.argv[1] if len(sys.argv) > 1 else str(default_kb)
 
