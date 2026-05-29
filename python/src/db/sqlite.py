@@ -8,6 +8,27 @@ from typing import Optional, List, Dict, Any
 # 数据库文件路径（放在python目录下，自动生成）
 DB_PATH = "ci_system.db"
 
+# ── SQL 注入防护：表名 + 配置键白名单 ──
+ALLOWED_SQL_TABLE_NAMES: set[str] = {
+    "competitors", "analysis_records", "system_config", "config_history",
+    "our_product", "feedback_records", "analysis_snapshots",
+    "evolution_feedback", "template_performance",
+}
+ALLOWED_CONFIG_KEYS: set[str] = {"llm", "notification", "alert", "pipeline"}
+
+
+def _validate_safe_table_name(name: str) -> str:
+    if name not in ALLOWED_SQL_TABLE_NAMES:
+        raise ValueError(f"table name not in whitelist: {name}")
+    return name
+
+
+def _validate_safe_config_key(key: str) -> str:
+    parts = key.split(".")
+    if parts[0] not in ALLOWED_CONFIG_KEYS:
+        raise ValueError(f"config key prefix not allowed: {key}")
+    return key
+
 # ------------------------------
 # 数据库初始化（自动建表）
 # ------------------------------

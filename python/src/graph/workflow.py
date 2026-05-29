@@ -212,10 +212,46 @@ async def feishu_push_node(state: dict[str, Any]) -> dict[str, Any]:
 
         success = await bot.send_competitor_report(report_data)
         logger.info("飞书推送%s", "成功" if success else "失败")
+
+        # ★ 后台异步回调报告增强端点（非阻塞，不影响主流程）
+        try:
+            asyncio.create_task(
+                _async_report_callback(competitor, quality, cit, battle, state)
+            )
+        except Exception:
+            pass
+
         return {"feishu_push_status": "success" if success else "failed"}
     except Exception as e:
         logger.warning("飞书推送异常（不影响分析主流程）: %s", e)
         return {"feishu_push_status": f"error: {str(e)[:100]}"}
+
+
+async def _async_report_callback(
+    competitor: str,
+    quality: float,
+    cit: dict,
+    battle: dict,
+    state: dict[str, Any],
+) -> None:
+    """后台异步回调 /api/v1/feishu/report-callback，不阻塞飞书推送主流程。"""
+    try:
+        import httpx
+        report_payload = {
+            "competitor": competitor,
+            "quality_score": quality,
+            "citation_report": cit,
+            "battlecard": battle,
+            "comparison_matrix": state.get("comparison_matrix", {}),
+            "report_id": f"{competitor}_{state.get('reflexion_count', 0)}",
+        }
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            await client.post(
+                "http://localhost:8000/api/v1/feishu/report-callback",
+                json=report_payload,
+            )
+    except Exception as e:
+        logger.debug("报告回调异步通知跳过: %s", e)
 
 
 # ======================= Deep Research 并行子任务 ======================

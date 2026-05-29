@@ -349,3 +349,138 @@ class CompareAgent:
         except (AttributeError, TypeError, ValueError) as e:
             logger.warning("Failed to parse comparison matrix dimensions: %s", e)
             return CompareAgent._default_matrix(competitor)
+
+
+# ═══════════════════════════════════════════════════════════
+# 多模态融合引擎 — 60%文本 + 40%视觉加权评分
+# ═══════════════════════════════════════════════════════════
+
+class MultimodalFusionEngine:
+    """多模态融合引擎：文本评分 60% + 视觉评分 40% 加权融合。
+
+    所有步骤 try-except 保护，无多模态素材时自动回退纯文本模式。
+    """
+
+    TEXT_WEIGHT = 0.6
+    VISUAL_WEIGHT = 0.4
+
+    def __init__(self):
+        self._multimodal_available = False
+        try:
+            from ..services.multimodal.doubao_vl_service import analyze_competitor_poster
+            from ..services.multimodal.ocr_service import extract_text_from_image
+            self._analyze_poster = analyze_competitor_poster
+            self._ocr_extract = extract_text_from_image
+            self._multimodal_available = True
+        except ImportError:
+            logger.debug("多模态服务未就绪，融合引擎工作于纯文本模式")
+
+    @property
+    def is_available(self) -> bool:
+        return self._multimodal_available
+
+    async def enrich_dimension(
+        self,
+        dimension_name: str,
+        text_score: float,
+        multimodal_assets: list[dict] | None = None,
+    ) -> dict:
+        """对单个对比维度做多模态增强评分。
+
+        Args:
+            dimension_name: 维度名称（如 "Product Features"）
+            text_score: LLM 文本分析给出的原始评分 (0-10)
+            multimodal_assets: 多模态素材列表 [{"path": ..., "type": ...}]
+
+        Returns:
+            {"fused_score": float, "visual_score": float, "visual_evidence": str}
+        """
+        if not self._multimodal_available or not multimodal_assets:
+            return {"fused_score": text_score, "visual_score": text_score, "visual_evidence": ""}
+
+        visual_scores: list[float] = []
+        evidence_parts: list[str] = []
+
+        for asset in multimodal_assets:
+            path = asset.get("path", "")
+            asset_type = asset.get("type", "")
+
+            try:
+                if asset_type in ("poster", "screenshot"):
+                    poster_result = await self._analyze_poster(path)
+                    if poster_result.get("parse_success") is not False:
+                        selling_points = poster_result.get("core_selling_points", [])
+                        pricing = poster_result.get("pricing_info", "")
+                        if selling_points:
+                            evidence_parts.append(f"视觉卖点: {'; '.join(selling_points[:3])}")
+                        if pricing:
+                            evidence_parts.append(f"视觉定价: {pricing}")
+                        # 卖点数量映射到评分 (1-5个卖点 → 6-9分)
+                        v_score = min(9.0, 6.0 + len(selling_points) * 0.6)
+                        visual_scores.append(v_score)
+
+                if asset_type in ("ocr",):
+                    ocr_result = await self._ocr_extract(path)
+                    if ocr_result.get("ok"):
+                        ocr_text = ocr_result.get("text", "")
+                        ocr_conf = ocr_result.get("confidence", 0)
+                        if ocr_text:
+                            evidence_parts.append(f"OCR提取: {ocr_text[:150]}")
+                        # 置信度映射到评分
+                        v_score = 5.0 + ocr_conf * 4.0
+                        visual_scores.append(min(9.0, v_score))
+            except Exception as e:
+                logger.debug("多模态增强跳过维度 %s: %s", dimension_name, e)
+
+        if not visual_scores:
+            return {"fused_score": text_score, "visual_score": text_score, "visual_evidence": ""}
+
+        avg_visual = sum(visual_scores) / len(visual_scores)
+        fused = self.TEXT_WEIGHT * text_score + self.VISUAL_WEIGHT * avg_visual
+        evidence = "; ".join(evidence_parts[:3])
+
+        return {
+            "fused_score": round(min(10.0, fused), 1),
+            "visual_score": round(avg_visual, 1),
+            "visual_evidence": evidence[:500],
+        }
+
+    async def enrich_comparison_matrix(
+        self,
+        text_matrix: dict,
+        multimodal_context: dict[str, list[dict]] | None = None,
+    ) -> dict:
+        """对完整 8 维度对比矩阵做多模态增强。
+
+        multimodal_context: {dimension_name: [multimodal_assets]}
+        """
+        if not self._multimodal_available or not multimodal_context:
+            return text_matrix
+
+        enriched_dims = []
+        for dim in text_matrix.get("dimensions", []):
+            dim_name = dim.get("dimension", "")
+            assets = multimodal_context.get(dim_name, [])
+            if assets:
+                enrichment = await self.enrich_dimension(
+                    dim_name,
+                    float(dim.get("competitor_score", 5.0)),
+                    assets,
+                )
+                enriched_dims.append({
+                    **dim,
+                    "competitor_score": enrichment["fused_score"],
+                    "notes": (
+                        str(dim.get("notes", ""))
+                        + (f" | 视觉增强: {enrichment['visual_evidence']}"
+                           if enrichment["visual_evidence"] else "")
+                    ),
+                })
+            else:
+                enriched_dims.append(dim)
+
+        return {**text_matrix, "dimensions": enriched_dims}
+
+
+# 全局单例
+fusion_engine = MultimodalFusionEngine()

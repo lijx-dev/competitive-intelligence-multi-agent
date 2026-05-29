@@ -246,6 +246,109 @@ class DoubaoLLM:
             usage=result["usage"],
         )
 
+    # ── 多模态调用（豆包优先 + 通义VL fallback）──────────────
+
+    async def ainvoke_multimodal(self, image_path_or_url: str, prompt_text: str) -> str:
+        """豆包多模态调用：传入本地图片路径或公网URL + 提示文本。
+
+        直接复用现有 ARK SDK 连接（self._client），不做额外HTTP连接。
+        豆包超时/限流自动降级到通义VL作为安全fallback。
+        """
+        import base64
+        import os as _os
+
+        messages: list[dict] = []
+        is_local = _os.path.exists(image_path_or_url)
+
+        if is_local:
+            try:
+                with open(image_path_or_url, "rb") as f:
+                    b64_data = base64.b64encode(f.read()).decode("utf-8")
+                messages.append({
+                    "role": "user",
+                    "content": [
+                        {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64_data}"}},
+                        {"type": "text", "text": prompt_text},
+                    ]
+                })
+            except Exception as e_local:
+                logger.warning("本地图片转base64失败: %s", e_local)
+                return ""
+        else:
+            messages.append({
+                "role": "user",
+                "content": [
+                    {"type": "image_url", "image_url": {"url": image_path_or_url}},
+                    {"type": "text", "text": prompt_text},
+                ]
+            })
+
+        try:
+            response = await asyncio.to_thread(
+                self._client.chat.completions.create,
+                model=self.model_id,
+                messages=messages,
+                temperature=0.7,
+                max_tokens=2048,
+            )
+            if response and response.choices and len(response.choices) > 0:
+                return response.choices[0].message.content or ""
+            return ""
+        except Exception as e_doubao:
+            logger.warning("豆包多模态调用失败，自动fallback通义VL: %s", e_doubao)
+            return await self._fallback_qwen_multimodal(image_path_or_url, prompt_text)
+
+    async def _fallback_qwen_multimodal(self, image_path_or_url: str, prompt_text: str) -> str:
+        """通义VL作为安全降级方案，绝对不阻塞主流程。"""
+        try:
+            import dashscope
+            from ..config import get_effective_llm_config
+
+            cfg = get_effective_llm_config()
+            messages_qwen: list[dict] = []
+            import os as _os
+            if _os.path.exists(image_path_or_url):
+                import base64
+                with open(image_path_or_url, "rb") as f:
+                    b64 = base64.b64encode(f.read()).decode("utf-8")
+                messages_qwen.append({
+                    "role": "user",
+                    "content": [
+                        {"image": f"data:image/jpeg;base64,{b64}"},
+                        {"text": prompt_text},
+                    ]
+                })
+            else:
+                messages_qwen.append({
+                    "role": "user",
+                    "content": [
+                        {"image": image_path_or_url},
+                        {"text": prompt_text},
+                    ]
+                })
+
+            resp = dashscope.MultiModalConversation.call(
+                api_key=getattr(cfg, "api_key", ""),
+                model="qwen-vl-plus",
+                messages=messages_qwen,
+            )
+            if resp and resp.get("output", {}).get("choices"):
+                choices = resp["output"]["choices"]
+                if len(choices) > 0:
+                    msg_content = choices[0].get("message", {}).get("content", [])
+                    if isinstance(msg_content, list) and len(msg_content) > 0:
+                        return msg_content[0].get("text", "")
+                    if isinstance(msg_content, str):
+                        return msg_content
+            logger.warning("通义VL返回格式异常")
+            return ""
+        except ImportError:
+            logger.warning("dashscope 未安装，通义VL fallback跳过，直接返回空字符串继续主流程")
+            return ""
+        except Exception as e_qwen:
+            logger.exception("通义VL fallback也失败: %s", e_qwen)
+            return ""
+
     # ── 统计 ─────────────────────────────────────────────────
 
     def get_stats(self) -> dict:

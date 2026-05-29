@@ -20,3 +20,14 @@ tenacity>=9.0.0
 volcengine-python-sdk>=1.0.0
 numpy>=1.26.0
 pandas>=2.0.0
+
+# --- 多模态免费MVP依赖 ---
+paddlepaddle>=2.6.0
+paddleocr>=2.7.0
+opencv-python>=4.8.0
+diffimg>=0.3.0
+pixelmatch>=0.3.0
+openai-whisper>=20240930
+scikit-image>=0.22.0
+bilibili-api-python>=10.0.0
+dashscope>=1.20.0  # 通义VL仅作为fallback按需加载，不强制启动

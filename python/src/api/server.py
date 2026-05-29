@@ -38,6 +38,7 @@ from typing import List, Optional, Dict, Any
 import asyncio
 import json
 import logging
+import os
 from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import AsyncGenerator
@@ -52,14 +53,24 @@ from ..tools.notification import send_slack, send_dingtalk, send_email
 
 logger = logging.getLogger(__name__)
 
+# ── CORS 配置（环境变量可控，演示环境默认 *）──
+_CORS_RAW = os.getenv("CORS_ALLOWED_ORIGINS", "*")
+if _CORS_RAW == "*":
+    CORS_ALLOWED_ORIGINS: list[str] = ["*"]
+else:
+    try:
+        CORS_ALLOWED_ORIGINS = json.loads(_CORS_RAW)
+    except Exception:
+        CORS_ALLOWED_ORIGINS = [x.strip() for x in _CORS_RAW.split(",") if x.strip()]
+
 
 # ---------------------------------------------------------------------------
 # Request / Response models
 # ---------------------------------------------------------------------------
 
 class AnalyzeRequest(BaseModel):
-    competitor: str
-    urls: list[str] | None = None
+    competitor: str = Field(description="竞品名称", min_length=1, max_length=128)
+    urls: list[str] | None = Field(default_factory=list, description="监控URL列表", max_length=50)
 
 
 class AnalyzeResponse(BaseModel):
@@ -161,10 +172,35 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=CORS_ALLOWED_ORIGINS,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ── P2-1: 可选 API Key 鉴权中间件（环境变量控制，未配置时完全跳过） ──
+import os as _os
+_ALLOWED_API_KEYS_RAW = _os.getenv("ALLOWED_API_KEYS", "")
+ALLOWED_API_KEYS: set[str] = set()
+if _ALLOWED_API_KEYS_RAW:
+    ALLOWED_API_KEYS = {x.strip() for x in _ALLOWED_API_KEYS_RAW.split(",") if x.strip()}
+if ALLOWED_API_KEYS:
+    @app.middleware("http")
+    async def optional_api_key_auth(request: Request, call_next):
+        x_key = request.headers.get("X-API-Key", "")
+        if x_key not in ALLOWED_API_KEYS:
+            return JSONResponse(status_code=401, content={"ok": False, "error": "unauthorized"})
+        return await call_next(request)
+
+# ── P0-3: 全局请求超时中间件（60 秒） ──
+from fastapi import Request
+from fastapi.responses import JSONResponse
+
+@app.middleware("http")
+async def global_request_timeout_middleware(request: Request, call_next):
+    try:
+        return await asyncio.wait_for(call_next(request), timeout=60.0)
+    except asyncio.TimeoutError:
+        return JSONResponse(status_code=408, content={"ok": False, "error": "request timeout"})
 
 
 # ---------------------------------------------------------------------------
@@ -1014,3 +1050,69 @@ async def api_mock_toggle(req: MockToggleRequest):
         "scenario": req.scenario,
         "message": f"Mock 模式已{'启用（所有分析将使用预生成数据，3秒内完成）' if req.enabled else '关闭（恢复真实LLM调用）'}",
     }
+
+
+# ==================================================================
+#  飞书报告增强推送回调（分析完成后自动触发）
+# ==================================================================
+
+@app.post("/api/v1/feishu/report-callback", summary="DAG分析完成后回调推送飞书卡片")
+async def feishu_report_callback(report_data: dict):
+    """
+    DAG 分析完成后回调此端点，自动调用 FeishuBot 推送飞书卡片。
+    推送成功或失败均不阻塞主流程，返回 {"ok": true}。
+    """
+    from ..services.feishu.bot import FeishuBot
+    from ..config import get_effective_notification_config
+
+    cfg = get_effective_notification_config()
+    pushed = False
+    try:
+        bot = FeishuBot(
+            webhook_url=cfg.feishu_webhook_url,
+            secret=cfg.feishu_webhook_secret,
+        )
+        competitor_name = report_data.get("competitor", "未知竞品")
+        quality_score = report_data.get("quality_score", 0)
+        cit = report_data.get("citation_report", {})
+        total_sources = cit.get("total_sources", 0) if isinstance(cit, dict) else 0
+        battle = report_data.get("battlecard", {})
+        elevator = battle.get("elevator_pitch", "") if isinstance(battle, dict) else ""
+
+        await bot.send_competitor_report({
+            "competitor": competitor_name,
+            "quality_score": quality_score,
+            "total_sources": total_sources,
+            "key_findings": elevator or "分析完成",
+            "report_id": f"{competitor_name}_{datetime.utcnow().strftime('%Y%m%d%H%M%S')}",
+        })
+        pushed = True
+    except Exception:
+        logger.exception("飞书报告回调推送失败")
+
+    return {"ok": True, "pushed": pushed}
+
+
+# ==================================================================
+#  飞书云文档自动生成
+# ==================================================================
+
+class DocGenerateRequest(BaseModel):
+    """云文档生成请求"""
+    competitor: str = Field(description="竞品名称")
+    analysis_result: dict = Field(default_factory=dict, description="完整分析结果")
+
+
+@app.post("/api/v1/feishu/doc/generate", summary="生成飞书云文档报告")
+async def api_feishu_doc_generate(req: DocGenerateRequest):
+    """基于分析结果自动生成结构化飞书云文档，返回文档 URL。"""
+    from ..services.feishu import LarkDocService
+
+    try:
+        svc = LarkDocService()
+        result = await svc.create_report(req.competitor, req.analysis_result)
+        if result.get("ok"):
+            logger.info("飞书云文档已生成: %s → %s", req.competitor, result.get("doc_url"))
+        return {"status": "success", "data": result}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"云文档生成失败：{str(e)}")

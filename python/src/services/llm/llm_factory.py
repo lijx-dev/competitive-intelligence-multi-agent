@@ -91,6 +91,35 @@ class LLMFactory:
         return _get_doubao_llm(agent_name)
 
     @staticmethod
+    def get_multimodal_llm(agent_name: str = "multimodal_analysis") -> Any:
+        """获取多模态 LLM 实例，优先豆包自动降级通义。
+
+        豆包 DoubaoLLM 的 ainvoke_multimodal() 内部已包含 fallback 逻辑。
+        通义模式下动态 monkey-patch 兼容的 ainvoke_multimodal 占位方法。
+        """
+        cfg = get_effective_llm_config()
+        provider = getattr(cfg, "provider", "doubao")
+        if provider == "doubao":
+            return _get_doubao_llm(agent_name)
+        else:
+            logger.info("多模态使用通义回退模式")
+            tongyi_llm = _get_tongyi_llm()
+            # 动态绑定多模态兼容方法
+            async def _dummy_tongyi_multimodal(
+                self, image_path_or_url: str = "", prompt_text: str = ""
+            ) -> str:
+                logger.warning(
+                    "当前provider=tongyi，多模态能力请切换provider=doubao获得完整体验"
+                )
+                return ""
+            setattr(
+                tongyi_llm,
+                "ainvoke_multimodal",
+                _dummy_tongyi_multimodal.__get__(tongyi_llm, type(tongyi_llm)),
+            )
+            return tongyi_llm
+
+    @staticmethod
     def get_provider_info() -> dict:
         """获取当前 Provider 信息（供系统信息 API 使用）"""
         cfg = get_effective_llm_config()
