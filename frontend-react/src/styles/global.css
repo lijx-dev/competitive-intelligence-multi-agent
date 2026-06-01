@@ -7126,3 +7126,112 @@ g:focus > .trend-dot {
     grid-template-columns: 1fr;
   }
 }
+
+/* =============================================================================
+   信息溯源 — 一键跳转来源列表 (Source URLs)
+   ============================================================================= */
+
+.source-urls-section {
+  margin: 16px 0 20px;
+  padding: 16px;
+  background: var(--blue-soft-2, #ecf6ff);
+  border: 1px solid var(--soft-line, #e5edf6);
+  border-radius: var(--radius, 8px);
+}
+
+.source-urls-heading {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 12px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--blue-strong, #043c8c);
+}
+
+.source-urls-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.source-url-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  background: #ffffff;
+  border: 1px solid var(--line, #d1dfec);
+  border-radius: 6px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.source-url-item:hover {
+  border-color: var(--blue, #075fcb);
+  box-shadow: 0 2px 8px rgba(7, 95, 203, 0.08);
+}
+
+.source-url-item a {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  text-decoration: none;
+  color: inherit;
+}
+
+.source-url-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.source-url-item.reachable .source-url-dot {
+  background: #22c55e;
+}
+
+.source-url-item.broken .source-url-dot {
+  background: #ef4444;
+}
+
+.source-url-host {
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--ink, #0b1c33);
+  white-space: nowrap;
+}
+
+.source-url-path {
+  font-size: 12px;
+  color: var(--muted, #536982);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.source-url-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.meta-reachable {
+  color: #16a34a;
+  font-weight: 500;
+}
+
+.meta-broken {
+  color: #dc2626;
+  font-weight: 500;
+}
+
+.meta-reliability {
+  color: var(--muted, #536982);
+}

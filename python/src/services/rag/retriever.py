@@ -66,7 +66,7 @@ class VectorRetriever:
         self.metadata.extend(documents)
         logger.debug("FAISS 索引: +%d chunks, total=%d", len(documents), self.index.ntotal)
 
-    def search(self, query: str, k: int = 5, filters: dict | None = None) -> list[dict]:
+    def search(self, query: str, k: int = 5, filters: Optional[dict] = None) -> list[dict]:
         """向量检索 + 元数据过滤 + 结果格式化"""
         if self.index is None or self.index.ntotal == 0:
             return []

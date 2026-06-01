@@ -84,6 +84,11 @@ func main() {
 		v1.GET("/infra/token-usage", handler.GetTokenUsage(backend))
 	}
 
+	// ── 通用反向代理：覆盖 /api/* 下所有未显式注册的路由 ──
+	// 将 /api/v1/* 转发到后端同名路径，确保 RAG/进化/配置/Ontology 等接口均可访问
+	h.Any("/api/v1/*path", handler.GenericAPIProxy(backend))
+	h.Any("/api/*path", handler.GenericAPIProxy(backend))
+
 	// ── 路由表打印 ──
 	h.GET("/routes", func(ctx context.Context, c *app.RequestContext) {
 		c.JSON(200, map[string]interface{}{
@@ -102,6 +107,8 @@ func main() {
 				"POST /webhook/feishu/feedback",
 				"GET  /api/v1/infra/decision-logs",
 				"GET  /api/v1/infra/token-usage",
+				"ANY  /api/v1/*path  (generic proxy)",
+				"ANY  /api/*path     (generic proxy)",
 			},
 			"backend":  backend,
 			"framework": "CloudWeGo Hertz v0.9",

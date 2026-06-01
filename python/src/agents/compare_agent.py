@@ -212,8 +212,8 @@ class CompareAgent:
         self,
         competitor: str,
         research_results: list[dict],
-        our_product_info: dict | None = None,
-        fact_check_result: dict | None = None,
+        our_product_info: Optional[dict] = None,
+        fact_check_result: Optional[dict] = None,
     ) -> ComparisonMatrix:
         # ★ 03 方案数据增强
         enrichment_text = await self._enrich_research_data(research_results, competitor)
@@ -383,7 +383,7 @@ class MultimodalFusionEngine:
         self,
         dimension_name: str,
         text_score: float,
-        multimodal_assets: list[dict] | None = None,
+        multimodal_assets: Optional[list[dict]] = None,
     ) -> dict:
         """对单个对比维度做多模态增强评分。
 

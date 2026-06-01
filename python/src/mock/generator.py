@@ -52,7 +52,7 @@ class MockDataGenerator:
     # ── 完整 Pipeline 结果生成 ─────────────────────────────
 
     def generate_full_pipeline(
-        self, competitor: str = "", urls: list | None = None
+        self, competitor: str = "", urls: Optional[list] = None
     ) -> dict:
         """生成完整的 PipelineState 字典，模拟整个 DAG 执行结果。
 

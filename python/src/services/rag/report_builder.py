@@ -125,7 +125,7 @@ def _format_battlecard_markdown(card: dict) -> str:
 
 def normalize_report_terms(
     report_sections: dict[str, Any],
-    glossary_docs: list[dict] | None = None,
+    glossary_docs: Optional[list[dict]] = None,
 ) -> dict[str, Any]:
     """对整个报告的所有文本章节做术语标准化。
 

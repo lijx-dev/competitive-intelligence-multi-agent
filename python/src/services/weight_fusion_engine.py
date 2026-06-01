@@ -362,6 +362,10 @@ class FusionEngine:
 # 综合竞品评分引擎
 # ============================================================
 
+# 别名兼容旧名称（向后兼容）
+DataAccessibilityMatrix = DynamicWeightEngine
+ReputationAssessmentFramework = FusionEngine
+
 class CompetitorScoringEngine:
     """竞品综合评分引擎"""
 

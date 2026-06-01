@@ -1,24 +1,28 @@
-"""URL Schema 白名单校验 — 防止 SSRF 攻击（file:///ftp:// 等危险协议拦截）"""
-
+"""URL安全校验工具 — 防止SSRF漏洞，白名单模式"""
 from __future__ import annotations
-
-import logging
 from urllib.parse import urlparse
 
-logger = logging.getLogger(__name__)
+ALLOWED_SCHEMES = {"http", "https"}
+BLOCKED_HOSTS = {"127.0.0.1", "localhost", "0.0.0.0", "192.168.", "10.", "172."}
 
-ALLOWED_URL_SCHEMAS = {"http", "https"}
 
-
-def validate_safe_http_url(url: str) -> bool:
-    """校验 URL 是否为安全 HTTP/HTTPS 协议，且不超过 2048 字符。"""
+def validate_safe_url(url: str) -> bool:
+    """
+    校验URL是否安全，防止SSRF攻击。
+    只允许http/https，拦截内网IP地址。
+    """
+    if not url:
+        return False
     try:
         parsed = urlparse(url)
-        return (
-            parsed.scheme in ALLOWED_URL_SCHEMAS
-            and bool(parsed.netloc)
-            and len(url) <= 2048
-        )
-    except Exception as e:
-        logger.warning("URL校验失败: %s", e)
+        if parsed.scheme not in ALLOWED_SCHEMES:
+            return False
+        host = (parsed.hostname or "").lower()
+        if not host:
+            return False
+        for blocked_prefix in BLOCKED_HOSTS:
+            if host.startswith(blocked_prefix):
+                return False
+        return True
+    except Exception:
         return False

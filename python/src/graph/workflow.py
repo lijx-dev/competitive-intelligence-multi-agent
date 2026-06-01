@@ -12,8 +12,9 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 from datetime import datetime, timezone
-from typing import Annotated, Any, TypedDict
+from typing import Annotated, Any, Optional, TypedDict
 
 from langgraph.graph import END, StateGraph
 
@@ -120,7 +121,7 @@ class PipelineState(TypedDict, total=False):
 
     quality_score: float
     reflexion_count: int
-    error: str | None
+    error: Optional[str]
 
 
 # ---------------------------------------------------------------------------
@@ -165,6 +166,122 @@ def _after_review(state: dict[str, Any]) -> str:
 def _after_targeted_fix(state: dict[str, Any]) -> str:
     """TargetedFix → 返回 Reviewer 重新审查"""
     return "reviewer"
+
+
+# ======================= Ontology 图谱构建节点 ======================
+
+async def ontology_builder_node(state: dict[str, Any]) -> dict[str, Any]:
+    """Ontology 关系图谱构建节点：从分析结果中提取实体关系，构建五层对象体系。
+
+    输入：competitor、research_results、comparison_matrix、battlecard
+    输出：ontology_graph（D3/AntV 兼容的图数据，供前端可视化）
+    失败安全，不阻塞主流程。
+    """
+    competitor = state.get("competitor", "Unknown")
+    research_results = state.get("research_results", [])
+    comparison = state.get("comparison_matrix", {})
+    battlecard = state.get("battlecard", {})
+
+    try:
+        from ..core.ontology_relation_graph import (
+            OntologyGraph, OntologyNode, OntologyRelation, RelationType, LAYER_COLORS
+        )
+
+        nodes: list[OntologyNode] = []
+        relations: list[OntologyRelation] = []
+
+        # ── L1: 核心实体 ──
+        comp_id = "comp_1"
+        nodes.append(OntologyNode(
+            id=comp_id, label=competitor, layer="L1", entity_type="Competitor",
+            color=LAYER_COLORS["L1"], size=28,
+            properties={"quality_score": state.get("quality_score", 0)},
+        ))
+
+        prod_id = "prod_1"
+        nodes.append(OntologyNode(
+            id=prod_id, label=f"{competitor} 核心产品", layer="L1", entity_type="Product",
+            color=LAYER_COLORS["L1"], size=20,
+        ))
+        relations.append(OntologyRelation(
+            id="r_comp_prod", source=comp_id, target=prod_id,
+            relation_type=RelationType.COMPETITOR_HAS_PRODUCT, weight=1.0,
+        ))
+
+        # ── L2: 功能维度（从 comparison_matrix 提取）──
+        dimensions = comparison.get("dimensions", []) if isinstance(comparison, dict) else []
+        for i, dim in enumerate(dimensions[:5]):
+            if not isinstance(dim, dict):
+                continue
+            dim_id = f"dim_{i}"
+            nodes.append(OntologyNode(
+                id=dim_id, label=dim.get("name", f"维度{i}")[:30], layer="L2", entity_type="Feature",
+                color=LAYER_COLORS["L2"], size=16,
+                properties={"competitor_score": dim.get("competitor_score", 0)},
+            ))
+            relations.append(OntologyRelation(
+                id=f"r_dim_{i}", source=prod_id, target=dim_id,
+                relation_type=RelationType.PRODUCT_HAS_FEATURE, weight=1.0,
+            ))
+
+        # ── L3: 市场情报（从 research_results 提取）──
+        for i, r in enumerate(research_results[:3]):
+            if not isinstance(r, dict):
+                continue
+            evt_id = f"evt_{i}"
+            topic = str(r.get("topic", f"事件{i}"))[:30]
+            nodes.append(OntologyNode(
+                id=evt_id, label=topic, layer="L3", entity_type="MarketEvent",
+                color=LAYER_COLORS["L3"], size=14,
+                properties={"confidence": r.get("confidence", 0)},
+            ))
+            relations.append(OntologyRelation(
+                id=f"r_evt_{i}", source=comp_id, target=evt_id,
+                relation_type=RelationType.COMPETITOR_HAS_EVENT,
+                weight=float(r.get("confidence", 0.5)),
+            ))
+
+        # ── L4: 分析产出（从 battlecard 提取）──
+        insights: list[str] = []
+        if isinstance(battlecard, dict):
+            insights.extend(str(x) for x in battlecard.get("key_differentiators", [])[:2])
+            swot = battlecard.get("swot", {})
+            if isinstance(swot, dict):
+                insights.extend(str(x) for x in swot.get("opportunities", [])[:2])
+
+        for i, ins in enumerate(insights[:3]):
+            ins_id = f"ins_{i}"
+            nodes.append(OntologyNode(
+                id=ins_id, label=ins[:30], layer="L4", entity_type="Insight",
+                color=LAYER_COLORS["L4"], size=14,
+            ))
+            relations.append(OntologyRelation(
+                id=f"r_ins_{i}", source=comp_id, target=ins_id,
+                relation_type=RelationType.COMPETITOR_HAS_SENTIMENT, weight=0.8,
+            ))
+
+        # ── L5: 执行动作 ──
+        task_id = "task_1"
+        nodes.append(OntologyNode(
+            id=task_id, label=f"{competitor} 监控任务", layer="L5", entity_type="MonitorTask",
+            color=LAYER_COLORS["L5"], size=14,
+        ))
+        relations.append(OntologyRelation(
+            id="r_task", source=task_id, target=comp_id,
+            relation_type=RelationType.TASK_MONITORS_COMPETITOR, weight=1.0,
+        ))
+
+        graph = OntologyGraph(
+            nodes=nodes,
+            relations=relations,
+            stats={"nodes": len(nodes), "relations": len(relations), "layers": 5},
+        )
+
+        logger.info("Ontology 图谱构建完成: %d 节点, %d 关系", len(nodes), len(relations))
+        return {"ontology_graph": graph.model_dump()}
+    except Exception as e:
+        logger.warning("Ontology 构建失败（不阻塞主流程）: %s", e)
+        return {"ontology_graph": None}
 
 
 # ======================= 飞书推送节点 ==============================
@@ -256,6 +373,81 @@ async def _async_report_callback(
 
 # ======================= Deep Research 并行子任务 ======================
 
+async def multimodal_analysis_node(state: dict[str, Any]) -> dict[str, Any]:
+    """多模态分析节点：对竞品图片/视频素材进行视觉分析。
+
+    检查是否有本地截图/海报文件，或 research_results 中的图片 URL，
+    调用豆包多模态服务进行视觉分析。结果合并到 research_results，
+    供下游 CompareAgent 使用。失败安全，不阻塞主流程。
+    """
+    competitor = state.get("competitor", "")
+    research_results = list(state.get("research_results", []))
+
+    # 预定义可能的本地素材路径
+    possible_paths = [
+        f"./data/screenshots/{competitor}.png",
+        f"./data/screenshots/{competitor}.jpg",
+        f"./data/posters/{competitor}.png",
+        f"./data/posters/{competitor}.jpg",
+        f"./data/multimodal/{competitor}.png",
+        f"./data/multimodal/{competitor}.jpg",
+    ]
+
+    multimodal_findings: list[dict] = []
+
+    for path in possible_paths:
+        if os.path.exists(path):
+            try:
+                from ..services.multimodal.doubao_vl_service import analyze_product_screenshot
+
+                result = await analyze_product_screenshot(
+                    path, context=f"竞品 {competitor} 产品截图/海报分析"
+                )
+                if result and not result.get("error"):
+                    features = result.get("feature_detected", [])
+                    ui_patterns = result.get("ui_patterns", [])
+                    summary_parts = []
+                    if features:
+                        summary_parts.append(f"检测到功能: {', '.join(features[:5])}")
+                    if ui_patterns:
+                        summary_parts.append(f"UI模式: {', '.join(ui_patterns[:3])}")
+                    if not summary_parts and result.get("raw_text"):
+                        summary_parts.append(result["raw_text"][:300])
+
+                    multimodal_findings.append({
+                        "topic": f"[多模态] {competitor} 视觉素材分析",
+                        "summary": " | ".join(summary_parts) if summary_parts else "多模态分析完成",
+                        "key_findings": features or ui_patterns or ["视觉分析完成"],
+                        "sources": ["multimodal_screenshot"],
+                        "confidence": 0.85,
+                        "multimodal_data": result,
+                    })
+                    logger.info("多模态分析完成: %s (%d features)", path, len(features))
+            except Exception as e:
+                logger.warning("多模态分析失败 [%s]: %s", path, e)
+
+    # 从 research_results 中提取图片 URL（如果有）
+    for r in research_results:
+        sources = r.get("sources", [])
+        for src in sources:
+            if isinstance(src, str) and any(ext in src.lower() for ext in [".png", ".jpg", ".jpeg", ".webp"]):
+                # 发现图片 URL，记录为待分析素材（实际下载分析需要额外实现）
+                multimodal_findings.append({
+                    "topic": f"[多模态] {competitor} 图片素材",
+                    "summary": f"发现图片素材: {src[:100]}",
+                    "key_findings": ["图片URL待分析"],
+                    "sources": ["multimodal_url"],
+                    "confidence": 0.6,
+                })
+
+    if multimodal_findings:
+        return {"research_results": research_results + multimodal_findings}
+
+    # 无可分析素材时，添加跳过分录（用于可观测性追踪）
+    logger.info("多模态分析跳过: 未找到 %s 的可分析素材", competitor)
+    return {"research_results": research_results}
+
+
 async def research_node(state: dict[str, Any]) -> dict[str, Any]:
     """
     改造 Research Agent：5 维度真正并行子任务执行。
@@ -323,6 +515,7 @@ def build_pipeline() -> StateGraph:
     graph.add_node("monitor", instrumented_node("monitor", monitor_agent))
     graph.add_node("alert", instrumented_node("alert", alert_agent))
     graph.add_node("research", instrumented_node("research", research_node))
+    graph.add_node("multimodal", instrumented_node("multimodal", multimodal_analysis_node))
     graph.add_node("compare", instrumented_node("compare", compare_agent))
     graph.add_node("battlecard", instrumented_node("battlecard", battlecard_agent))
 
@@ -331,6 +524,7 @@ def build_pipeline() -> StateGraph:
     graph.add_node("reviewer", instrumented_node("reviewer", reviewer_agent))
     graph.add_node("targeted_fix", instrumented_node("targeted_fix", targeted_fix_agent))
     graph.add_node("citation", instrumented_node("citation", citation_agent))
+    graph.add_node("ontology", instrumented_node("ontology", ontology_builder_node))
     graph.add_node("feishu_push", instrumented_node("feishu_push", feishu_push_node))
 
     # ---------- 边 ----------
@@ -339,8 +533,9 @@ def build_pipeline() -> StateGraph:
     graph.add_edge("monitor", "research")
     graph.add_edge("alert", END)
 
-    # Research → FactCheck → Compare → Battlecard → Reviewer
-    graph.add_edge("research", "fact_check")
+    # Research → 多模态分析 → FactCheck → Compare → Battlecard → Reviewer
+    graph.add_edge("research", "multimodal")
+    graph.add_edge("multimodal", "fact_check")
     graph.add_edge("fact_check", "compare")
     graph.add_edge("compare", "battlecard")
     graph.add_edge("battlecard", "reviewer")
@@ -356,8 +551,9 @@ def build_pipeline() -> StateGraph:
         "reviewer": "reviewer",
     })
 
-    # Citation → 飞书推送 → END
-    graph.add_edge("citation", "feishu_push")
+    # Citation → Ontology → 飞书推送 → END
+    graph.add_edge("citation", "ontology")
+    graph.add_edge("ontology", "feishu_push")
     graph.add_edge("feishu_push", END)
 
     return graph.compile()
@@ -391,11 +587,13 @@ async def run_mock_pipeline(state: dict[str, Any]) -> dict[str, Any]:
         ("monitor",       "爬取网页+LLM变更分析（Mock）"),
         ("alert",         "HIGH级别变更告警（Mock）"),
         ("research",      "5维度深度搜索+RAG知识注入（Mock）"),
+        ("multimodal",    "多模态视觉素材分析（Mock）"),
         ("fact_check",    "纯规则交叉验证（Mock）"),
         ("compare",       "8维度对比评分矩阵（Mock）"),
         ("battlecard",    "销售战术卡生成（Mock）"),
         ("reviewer",      "4维度质量审查（Mock）"),
         ("citation",      "引用溯源验证（Mock）"),
+        ("ontology",      "Ontology关系图谱构建（Mock）"),
         ("feishu_push",   "飞书卡片推送（Mock跳过）"),
     ]
 
@@ -439,8 +637,9 @@ def _mock_token_counts(node_name: str) -> tuple[int, int]:
     """每个 Agent 的 Mock Token 消耗量（合理范围）"""
     counts = {
         "monitor": (420, 180), "alert": (100, 50), "research": (1100, 650),
-        "fact_check": (0, 0), "compare": (1500, 900), "battlecard": (800, 550),
-        "reviewer": (600, 280), "citation": (300, 200), "feishu_push": (50, 30),
+        "multimodal": (800, 400), "fact_check": (0, 0), "compare": (1500, 900),
+        "battlecard": (800, 550), "reviewer": (600, 280), "citation": (300, 200),
+        "ontology": (200, 100), "feishu_push": (50, 30),
     }
     return counts.get(node_name, (200, 100))
 

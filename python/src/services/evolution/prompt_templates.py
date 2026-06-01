@@ -104,7 +104,7 @@ def get_templates_for_agent(agent_name: str) -> list[dict]:
     return TEMPLATE_REGISTRY.get(agent_name, [])
 
 
-def select_template(agent_name: str, competitor: str = "", dimension: str = "") -> dict | None:
+def select_template(agent_name: str, competitor: str = "", dimension: str = "") -> Optional[dict]:
     """根据历史 performance_score 加权随机选择最优模板。
 
     返回选中的模板 dict，若该 Agent 无模板注册则返回 None。

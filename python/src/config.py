@@ -16,6 +16,9 @@ load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '..', '..', '.en
 
 logger = logging.getLogger(__name__)
 
+# 导入日志脱敏工具（用于 __repr__ 中自动脱敏敏感字段）
+from .utils.log_mask import mask_sensitive
+
 # ============================================================
 # 默认值定义（来自 .env，不可变）
 # ============================================================
@@ -32,6 +35,13 @@ class LLMConfig:
     # 豆包特有字段
     ark_api_key: str = os.getenv("ARK_API_KEY", "")                             # 火山引擎 Ark API Key
     doubao_model_id: str = os.getenv("DOUBAO_MODEL_ID", "doubao-seed-2.0-lite")  # 官方提供模型
+
+    def __repr__(self) -> str:
+        return (
+            f"LLMConfig(provider={self.provider}, model={self.model}, "
+            f"api_key={mask_sensitive(self.api_key)}, temperature={self.temperature}, "
+            f"ark_api_key={mask_sensitive(self.ark_api_key)})"
+        )
 
 
 @dataclass(frozen=True)

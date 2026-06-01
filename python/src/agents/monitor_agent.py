@@ -52,7 +52,7 @@ class MonitorAgent:
         self,
         competitor: str,
         urls: list[str],
-        previous_hashes: dict[str, str] | None = None,
+        previous_hashes: Optional[dict[str, str]] = None,
     ) -> list[CompetitorChange]:
         """Fetch pages, diff against previous hashes, and ask the LLM to
         classify changes.

@@ -100,7 +100,16 @@ class CitationAgent:
 
         overall = round(sum(reliability_scores) / max(len(reliability_scores), 1), 2)
 
-        # 6. L4 术语一致性检查（接入术语表）
+        # 6. 组装 source_urls 列表（供前端一键跳转）
+        source_urls = []
+        for url, result in zip(all_urls, results):
+            if isinstance(result, Exception):
+                source_urls.append({"url": url, "reachable": False, "reliability": self._reliability_score(url)})
+            else:
+                reachable, rel_score = result
+                source_urls.append({"url": url, "reachable": reachable, "reliability": rel_score})
+
+        # 7. L4 术语一致性检查（接入术语表）
         term_warnings = []
         try:
             term_warnings = self._check_term_consistency(battlecard)
@@ -114,6 +123,7 @@ class CitationAgent:
             missing_citations=missing + term_warnings,
             reliability_distribution=dist,
             overall_reliability_score=overall,
+            source_urls=source_urls,
         )
 
     # ---------- 内部 ----------

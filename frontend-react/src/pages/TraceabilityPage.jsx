@@ -162,6 +162,9 @@ function RecordSourcePanel({ result, onJump }) {
     .filter((url) => isRealSourceUrl(url))
     .map((url) => ({ url, label: new URL(url).hostname.replace(/^www\./, '') }));
 
+  // ★ 新增：source_urls 列表（来自后端 CitationAgent，含可达性+可信度）
+  const sourceUrls = take(citation.source_urls || [], 50);
+
   const renderPointer = (item) => {
     const url = item.url || item.source_url;
     const locator = item.locator || item.pointer;
@@ -191,6 +194,53 @@ function RecordSourcePanel({ result, onJump }) {
         </div>
         <span className="score-badge">{realSourceCount(result)} 个可定位来源</span>
       </div>
+
+      {/* ★ 新增：一键跳转来源列表 */}
+      {sourceUrls.length > 0 && (
+        <div className="source-urls-section">
+          <h4 className="source-urls-heading">
+            <Link2 size={14} /> 引用来源一键跳转
+          </h4>
+          <ul className="source-urls-list">
+            {sourceUrls.map((item, index) => (
+              <li key={index} className={`source-url-item ${item.reachable ? 'reachable' : 'broken'}`}>
+                <a
+                  href={item.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  title={item.reachable ? '链接可达，点击跳转' : '链接可能失效'}
+                >
+                  <span className="source-url-dot" />
+                  <span className="source-url-host">
+                    {(() => {
+                      try { return new URL(item.url).hostname.replace(/^www\./, ''); }
+                      catch { return item.url; }
+                    })()}
+                  </span>
+                  <span className="source-url-path">
+                    {(() => {
+                      try { return new URL(item.url).pathname.slice(0, 40); }
+                      catch { return ''; }
+                    })()}
+                  </span>
+                </a>
+                <span className="source-url-meta">
+                  {item.reachable ? (
+                    <small className="meta-reachable">可达</small>
+                  ) : (
+                    <small className="meta-broken">失效</small>
+                  )}
+                  {item.reliability != null && (
+                    <small className="meta-reliability">
+                      可信度 {(num(item.reliability) * 100).toFixed(0)}%
+                    </small>
+                  )}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <div className="source-evidence-list">
         {evidence.map((item, index) => (

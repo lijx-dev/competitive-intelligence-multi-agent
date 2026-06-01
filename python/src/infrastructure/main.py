@@ -68,7 +68,7 @@ async def record_agent_log(log: AgentDecisionLog):
 async def query_agent_logs(
     agent_name: str = "", phase: str = "", status: str = "",
     min_duration_ms: int = 0, max_duration_ms: int = 0,
-    has_anomaly: bool | None = None, keyword: str = "",
+    has_anomaly: Optional[bool] = None, keyword: str = "",
     limit: int = Query(default=100, le=1000),
 ):
     flt = DecisionLogFilter(keyword=keyword)

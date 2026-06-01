@@ -209,6 +209,13 @@ class FixEffectiveness(BaseSchema):
     timestamp: datetime = Field(default_factory=datetime.utcnow)
 
 
+class SourceURL(BaseSchema):
+    """单个引用来源 URL 及其验证状态"""
+    url: str
+    reachable: bool = False
+    reliability: float = Field(default=0.5, ge=0.0, le=1.0)
+
+
 class CitationReport(BaseSchema):
     """Citation Agent 引用溯源报告"""
     total_sources: int = 0
@@ -218,3 +225,4 @@ class CitationReport(BaseSchema):
     reliability_distribution: dict[str, int] = Field(default_factory=dict,
         description="可信度分布，如 {'1.0': 5, '0.8': 3}")
     overall_reliability_score: float = Field(default=0.0, ge=0.0, le=1.0)
+    source_urls: list[SourceURL] = Field(default_factory=list, description="所有引用来源URL列表，供前端一键跳转")

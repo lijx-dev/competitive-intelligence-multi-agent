@@ -216,7 +216,7 @@ class EvolutionEngine:
 
     def suggest_prompt_template(
         self, agent_name: str, competitor: str = "", dimension: str = ""
-    ) -> dict | None:
+    ) -> Optional[dict]:
         """根据历史反馈推荐最优 Prompt 模板。
 
         优先从 SQLite 读取评分（含运行时更新），回退到内存注册表。

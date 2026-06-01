@@ -494,10 +494,13 @@ def export_config() -> Dict[str, Any]:
 
 
 def import_config(data: Dict[str, Any]) -> int:
-    """从导出的 JSON 导入配置，返回导入的配置项数量"""
+    """从导出的 JSON 导入配置，返回导入的配置项数量。
+    仅允许 ALLOWED_CONFIG_KEYS 中的键，防止恶意配置覆盖。"""
     configs = data.get("configs", {})
     count = 0
     for key, item in configs.items():
+        # 安全校验：只允许白名单中的配置键
+        _validate_safe_config_key(key)
         value = item.get("value", item) if isinstance(item, dict) else item
         set_config_value(key, value, record_history=True)
         count += 1

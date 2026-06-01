@@ -214,7 +214,7 @@ class EventBus:
     # ------------------------------------------------------------------
 
     def get_events(
-        self, event_type: EventType | None = None, source: str | None = None
+        self, event_type: Optional[EventType] = None, source: Optional[str] = None
     ) -> list[BusEvent]:
         events = self._events
         if event_type:

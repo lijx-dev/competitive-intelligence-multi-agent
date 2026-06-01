@@ -66,7 +66,7 @@ class RAGEnhancedAgent:
         return citations
 
     @staticmethod
-    def normalize_terms(text: str, glossary_docs: list[dict] | None = None) -> str:
+    def normalize_terms(text: str, glossary_docs: Optional[list[dict]] = None) -> str:
         """术语标准化：将文本中的非标准术语替换为知识库定义的规范术语。
 
         从 RAG 检索术语表（doc_type="glossary"），对输入文本做术语替换。

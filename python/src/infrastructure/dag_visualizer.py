@@ -182,7 +182,7 @@ body{{background:#0f172a;font-family:system-ui,sans-serif;overflow:hidden;color:
             if e.target in edge_map:
                 edge_map[e.target].append(e.source)
 
-        def get_depth(node_id: str, visited: set | None = None) -> int:
+        def get_depth(node_id: str, visited: Optional[set] = None) -> int:
             if visited is None:
                 visited = set()
             if node_id in visited:

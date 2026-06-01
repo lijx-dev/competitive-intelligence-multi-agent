@@ -127,7 +127,7 @@ class AuditSystem:
     # 查询 / 联动
     # ------------------------------------------------------------------
 
-    def query(self, flt: AuditFilter | None = None) -> list[AuditAction]:
+    def query(self, flt: Optional[AuditFilter] = None) -> list[AuditAction]:
         if flt is None:
             return list(self._logs)
         results = self._logs
@@ -215,13 +215,13 @@ class AuditSystem:
     # 导出
     # ------------------------------------------------------------------
 
-    def export_json(self, flt: AuditFilter | None = None) -> str:
+    def export_json(self, flt: Optional[AuditFilter] = None) -> str:
         return json.dumps(
             [a.model_dump(mode="json") for a in self.query(flt)],
             ensure_ascii=False, indent=2,
         )
 
-    def export_csv(self, flt: AuditFilter | None = None) -> str:
+    def export_csv(self, flt: Optional[AuditFilter] = None) -> str:
         logs = self.query(flt)
         output = io.StringIO()
         writer = csv.writer(output)
@@ -237,7 +237,7 @@ class AuditSystem:
             ])
         return output.getvalue()
 
-    def export_iso27001(self, flt: AuditFilter | None = None) -> str:
+    def export_iso27001(self, flt: Optional[AuditFilter] = None) -> str:
         """按 ISO 27001 A.12.4 格式导出审计日志"""
         logs = self.query(flt)
         lines = [

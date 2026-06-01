@@ -32,6 +32,11 @@ async def analyze_competitor_poster(poster_path: str) -> dict:
     if safe_path is None:
         return {"ok": False, "error": "路径安全校验失败", "path": poster_path}
 
+    # 文件大小校验
+    from .path_security import validate_file_size, MAX_FILE_SIZE_BYTES
+    if not validate_file_size(safe_path):
+        return {"ok": False, "error": f"文件大小超过限制 ({MAX_FILE_SIZE_BYTES / 1024 / 1024:.0f}MB)"}
+
     # 大图自动压缩
     compressed_path = safe_path
     try:
@@ -80,6 +85,11 @@ async def analyze_product_screenshot(image_path: str, context: str = "") -> dict
     safe_path = validate_safe_path(image_path)
     if safe_path is None:
         return {"ok": False, "error": "路径安全校验失败"}
+
+    # 文件大小校验
+    from .path_security import validate_file_size, MAX_FILE_SIZE_BYTES
+    if not validate_file_size(safe_path):
+        return {"ok": False, "error": f"文件大小超过限制 ({MAX_FILE_SIZE_BYTES / 1024 / 1024:.0f}MB)"}
 
     vl_llm = LLMFactory.get_multimodal_llm("screenshot_analysis")
     prompt = f"""你是专业的竞品UI分析师。请分析这张竞品产品截图，返回JSON：

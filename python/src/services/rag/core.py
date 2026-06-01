@@ -82,7 +82,7 @@ class CompetitorRAG:
 
     # ── 检索 ───────────────────────────────────────
 
-    def query(self, query: str, k: int = 5, filters: dict | None = None) -> list[dict]:
+    def query(self, query: str, k: int = 5, filters: Optional[dict] = None) -> list[dict]:
         """单次检索：稠密向量 + 元数据过滤"""
         return self.retriever.search(query, k=k, filters=filters)
 

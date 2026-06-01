@@ -70,15 +70,15 @@ else:
 
 class AnalyzeRequest(BaseModel):
     competitor: str = Field(description="竞品名称", min_length=1, max_length=128)
-    urls: list[str] | None = Field(default_factory=list, description="监控URL列表", max_length=50)
+    urls: Optional[list[str]] = Field(default_factory=list, description="监控URL列表", max_length=50)
 
 
 class AnalyzeResponse(BaseModel):
     competitor: str
     changes_detected: list = []
     research_results: list = []
-    comparison_matrix: dict | None = None
-    battlecard: dict | None = None
+    comparison_matrix: Optional[dict] = None
+    battlecard: Optional[dict] = None
     alerts_sent: list = []
     quality_score: float = 0.0
 
@@ -191,10 +191,57 @@ if ALLOWED_API_KEYS:
             return JSONResponse(status_code=401, content={"ok": False, "error": "unauthorized"})
         return await call_next(request)
 
+# ── P0-3: 内存限流中间件（每IP 60请求/分钟） ──
+from collections import defaultdict
+import time
+
+class _SimpleRateLimiter:
+    def __init__(self, max_requests: int = 60, window_seconds: int = 60):
+        self.max_requests = max_requests
+        self.window_seconds = window_seconds
+        self._store: dict[str, list[float]] = defaultdict(list)
+
+    def is_allowed(self, client_id: str) -> bool:
+        now = time.time()
+        window = self._store[client_id]
+        # 清理过期记录
+        cutoff = now - self.window_seconds
+        while window and window[0] < cutoff:
+            window.pop(0)
+        if len(window) >= self.max_requests:
+            return False
+        window.append(now)
+        return True
+
+_rate_limiter = _SimpleRateLimiter(max_requests=60, window_seconds=60)
+
+@app.middleware("http")
+async def rate_limit_middleware(request: Request, call_next):
+    client_id = request.client.host if request.client else "unknown"
+    if not _rate_limiter.is_allowed(client_id):
+        return JSONResponse(status_code=429, content={"ok": False, "error": "rate limit exceeded"})
+    return await call_next(request)
+
+
 # ── P0-3: 全局请求超时中间件（60 秒） ──
 from fastapi import Request
 from fastapi.responses import JSONResponse
 
+# ── P0-3: 请求体大小限制中间件（50MB） ──
+MAX_REQUEST_BODY_SIZE = 50 * 1024 * 1024  # 50MB
+
+@app.middleware("http")
+async def request_size_limit_middleware(request: Request, call_next):
+    content_length = request.headers.get("content-length")
+    if content_length and int(content_length) > MAX_REQUEST_BODY_SIZE:
+        return JSONResponse(
+            status_code=413,
+            content={"ok": False, "error": f"请求体超过限制 ({MAX_REQUEST_BODY_SIZE / 1024 / 1024:.0f}MB)"},
+        )
+    return await call_next(request)
+
+
+# ── P0-3: 全局请求超时中间件（60 秒） ──
 @app.middleware("http")
 async def global_request_timeout_middleware(request: Request, call_next):
     try:
@@ -228,8 +275,8 @@ async def analyze(req: AnalyzeRequest):
         try:
             final = await run_mock_pipeline(initial_state)
         except Exception as exc:
-            logger.exception("Mock pipeline failed")
-            raise HTTPException(status_code=500, detail=str(exc))
+            logger.exception("Mock pipeline failed: %s", exc)
+            raise HTTPException(status_code=500, detail="分析流程执行失败，请稍后重试")
 
         response_data = AnalyzeResponse(
             competitor=final.get("competitor", req.competitor),
@@ -288,8 +335,8 @@ async def analyze(req: AnalyzeRequest):
     try:
         final = await pipeline.ainvoke(initial_state)
     except Exception as exc:
-        logger.exception("Pipeline failed")
-        raise HTTPException(status_code=500, detail=str(exc))
+        logger.exception("Pipeline failed: %s", exc)
+        raise HTTPException(status_code=500, detail="分析流程执行失败，请稍后重试")
 
     # 核心修复：递归遍历所有字段，把datetime全部转成ISO字符串
     def convert_datetime(obj):
@@ -510,16 +557,16 @@ async def add_competitor(req: CompetitorCreateRequest):
     """新增竞品到竞品库，名称重复会报错"""
     try:
         return create_competitor(name=req.name, urls=req.urls)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    except ValueError:
+        raise HTTPException(status_code=400, detail="请求参数错误，请检查输入数据")
 
 @app.put("/competitors/{competitor_id}", response_model=CompetitorResponse, summary="更新竞品信息")
 async def edit_competitor(competitor_id: int, req: CompetitorUpdateRequest):
     """根据ID更新竞品的名称和监控URL"""
     try:
         return update_competitor(competitor_id=competitor_id, name=req.name, urls=req.urls)
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+    except ValueError:
+        raise HTTPException(status_code=404, detail="竞品不存在")
 
 @app.delete("/competitors/{competitor_id}", summary="删除竞品")
 async def remove_competitor(competitor_id: int):
@@ -527,8 +574,8 @@ async def remove_competitor(competitor_id: int):
     try:
         delete_competitor(competitor_id)
         return {"status": "success", "message": f"竞品ID{competitor_id}删除成功"}
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+    except ValueError:
+        raise HTTPException(status_code=404, detail="竞品不存在")
 
 # ---------------------------------------------------------------------------
 # 新增：历史分析记录接口
@@ -623,8 +670,8 @@ async def api_rollback_config(req: ConfigRollbackRequest):
     try:
         result = rollback_config(req.key, req.version)
         return {"status": "success", "key": result["key"], "value": result["value"]}
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+    except ValueError:
+        raise HTTPException(status_code=404, detail="配置不存在或版本无效")
 
 
 @app.get("/api/config/export", summary="导出系统配置为JSON")

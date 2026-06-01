@@ -47,7 +47,7 @@ class DoubaoLLM:
         model_id: str = "doubao-seed-2.0-lite",  # 官方提供模型
         api_key: str = "",
         base_url: str = "https://ark.cn-beijing.volces.com/api/v3",
-        context_editing: dict | None = None,
+        context_editing: Optional[dict] = None,
         temperature: float = 0.7,
         max_tokens: int = 4096,
     ):
@@ -68,10 +68,10 @@ class DoubaoLLM:
     async def generate(
         self,
         prompt: str,
-        system_prompt: str | None = None,
-        temperature: float | None = None,
-        max_tokens: int | None = None,
-        tools: list[dict] | None = None,
+        system_prompt: Optional[str] = None,
+        temperature: Optional[float] = None,
+        max_tokens: Optional[int] = None,
+        tools: Optional[list[dict]] = None,
         **kwargs,
     ) -> dict[str, Any]:
         """生成补全 — 统一返回 {"content", "usage", "model"}
@@ -159,9 +159,9 @@ class DoubaoLLM:
     async def generate_stream(
         self,
         prompt: str,
-        system_prompt: str | None = None,
-        temperature: float | None = None,
-        max_tokens: int | None = None,
+        system_prompt: Optional[str] = None,
+        temperature: Optional[float] = None,
+        max_tokens: Optional[int] = None,
     ) -> AsyncGenerator[str, None]:
         """流式生成 — 逐步 yield 文本片段"""
         messages = []
@@ -206,8 +206,8 @@ class DoubaoLLM:
     async def ainvoke(
         self,
         messages: list,
-        temperature: float | None = None,
-        max_tokens: int | None = None,
+        temperature: Optional[float] = None,
+        max_tokens: Optional[int] = None,
     ) -> Any:
         """LangChain 兼容接口：接收 Message 列表，返回类 AIMessage 对象。
 

@@ -67,7 +67,7 @@ class AgentDecisionLogger:
     # 筛选
     # ------------------------------------------------------------------
 
-    def query(self, flt: DecisionLogFilter | None = None) -> list[AgentDecisionLog]:
+    def query(self, flt: Optional[DecisionLogFilter] = None) -> list[AgentDecisionLog]:
         """多维度筛选决策日志。不传 filter 返回全部。"""
         if flt is None:
             return list(self._logs)
@@ -84,7 +84,7 @@ class AgentDecisionLogger:
     # ------------------------------------------------------------------
 
     def timeline_replay(
-        self, start_time: datetime | None = None, end_time: datetime | None = None
+        self, start_time: Optional[datetime] = None, end_time: Optional[datetime] = None
     ) -> list[dict]:
         """按时间轴复现 Agent 执行全过程，返回带时间间隔的事件序列。
 
@@ -103,7 +103,7 @@ class AgentDecisionLogger:
             logs = [l for l in logs if l.timestamp <= end_time]
 
         timeline = []
-        prev_ts: datetime | None = None
+        prev_ts: Optional[datetime] = None
         for seq, log in enumerate(logs, 1):
             delta_ms = 0
             if prev_ts is not None:
@@ -195,7 +195,7 @@ class AgentDecisionLogger:
     # 导出
     # ------------------------------------------------------------------
 
-    def export_json(self, flt: DecisionLogFilter | None = None) -> str:
+    def export_json(self, flt: Optional[DecisionLogFilter] = None) -> str:
         """导出为 JSON 字符串"""
         logs = self.query(flt)
         return json.dumps(
@@ -204,7 +204,7 @@ class AgentDecisionLogger:
             indent=2,
         )
 
-    def export_csv(self, flt: DecisionLogFilter | None = None) -> str:
+    def export_csv(self, flt: Optional[DecisionLogFilter] = None) -> str:
         """导出为 CSV 字符串"""
         logs = self.query(flt)
         output = io.StringIO()
