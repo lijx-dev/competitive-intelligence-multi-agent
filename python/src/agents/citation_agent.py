@@ -42,7 +42,14 @@ class CitationAgent:
         research = state.get("research_results", [])
 
         report = await self.verify(battlecard, comparison, research)
-        return {"citation_report": report.model_dump()}
+
+        # ★ 1.3: 生成 SourceSpan 集合（细粒度 1:N 信息溯源映射）
+        source_spans = self._generate_source_spans(battlecard, comparison, research)
+
+        return {
+            "citation_report": report.model_dump(),
+            "source_spans": [s.model_dump() for s in source_spans],
+        }
 
     # ------------------------------------------------------------------
     # 核心验证
@@ -155,6 +162,150 @@ class CitationAgent:
     def _extract_urls(data: dict) -> list[str]:
         text = json.dumps(data, ensure_ascii=False)
         return list(set(URL_PATTERN.findall(text)))[:50]
+
+    @staticmethod
+    def _generate_source_spans(
+        battlecard: dict,
+        comparison: dict,
+        research: list[dict],
+    ) -> list:
+        """★ 1.3: 生成细粒度 SourceSpan 集合。
+
+        遍历 battlecard 和 comparison 中的每条结论，
+        匹配 research_results 中的 sources，生成精确的字符级溯源映射。
+        前端渲染时自动高亮并支持点击跳转原始URL。
+        """
+        from ..models.schemas import SourceSpan
+
+        spans: list[SourceSpan] = []
+        span_counter = 0
+
+        # 构建完整报告文本（用于计算字符偏移）
+        report_parts: list[str] = []
+
+        # ── 处理 elevator_pitch ──
+        elevator = battlecard.get("elevator_pitch", "") if isinstance(battlecard, dict) else ""
+        if elevator and isinstance(elevator, str):
+            start = len("".join(report_parts))
+            report_parts.append(elevator)
+            end = len("".join(report_parts))
+            # 为 elevator_pitch 中的关键句找来源
+            for source_info in CitationAgent._find_sources_for_text(elevator, research):
+                span_counter += 1
+                spans.append(SourceSpan(
+                    span_id=f"span_{span_counter:04d}",
+                    analysis_text_snippet=elevator[:200],
+                    start_char_idx=start,
+                    end_char_idx=end,
+                    source_url=source_info.get("url", ""),
+                    source_title=source_info.get("title", "未知来源"),
+                    reliability_score=source_info.get("reliability", 0.5),
+                    source_type=source_info.get("type", "web"),
+                ))
+
+        # ── 处理 key_differentiators ──
+        diffs = battlecard.get("key_differentiators", []) if isinstance(battlecard, dict) else []
+        for diff in diffs:
+            if not isinstance(diff, str) or len(diff) < 10:
+                continue
+            start = len("".join(report_parts))
+            report_parts.append(diff)
+            end = len("".join(report_parts))
+            for source_info in CitationAgent._find_sources_for_text(diff, research):
+                span_counter += 1
+                spans.append(SourceSpan(
+                    span_id=f"span_{span_counter:04d}",
+                    analysis_text_snippet=diff[:200],
+                    start_char_idx=start,
+                    end_char_idx=end,
+                    source_url=source_info.get("url", ""),
+                    source_title=source_info.get("title", "未知来源"),
+                    reliability_score=source_info.get("reliability", 0.5),
+                    source_type=source_info.get("type", "web"),
+                ))
+
+        # ── 处理 our_strengths / competitor_strengths ──
+        for field in ["our_strengths", "competitor_strengths", "our_weaknesses", "competitor_weaknesses"]:
+            items = battlecard.get(field, []) if isinstance(battlecard, dict) else []
+            for item in items:
+                if not isinstance(item, str) or len(item) < 10:
+                    continue
+                start = len("".join(report_parts))
+                report_parts.append(item)
+                end = len("".join(report_parts))
+                for source_info in CitationAgent._find_sources_for_text(item, research):
+                    span_counter += 1
+                    spans.append(SourceSpan(
+                        span_id=f"span_{span_counter:04d}",
+                        analysis_text_snippet=item[:200],
+                        start_char_idx=start,
+                        end_char_idx=end,
+                        source_url=source_info.get("url", ""),
+                        source_title=source_info.get("title", "未知来源"),
+                        reliability_score=source_info.get("reliability", 0.5),
+                        source_type=source_info.get("type", "web"),
+                    ))
+
+        # ── 处理 comparison overall_assessment ──
+        overall = comparison.get("overall_assessment", "") if isinstance(comparison, dict) else ""
+        if overall and isinstance(overall, str) and len(overall) > 20:
+            start = len("".join(report_parts))
+            report_parts.append(overall)
+            end = len("".join(report_parts))
+            for source_info in CitationAgent._find_sources_for_text(overall, research):
+                span_counter += 1
+                spans.append(SourceSpan(
+                    span_id=f"span_{span_counter:04d}",
+                    analysis_text_snippet=overall[:200],
+                    start_char_idx=start,
+                    end_char_idx=end,
+                    source_url=source_info.get("url", ""),
+                    source_title=source_info.get("title", "未知来源"),
+                    reliability_score=source_info.get("reliability", 0.5),
+                    source_type=source_info.get("type", "web"),
+                ))
+
+        # 计算覆盖率
+        full_text = "".join(report_parts)
+        covered_chars = sum(s.end_char_idx - s.start_char_idx for s in spans)
+        coverage = round(covered_chars / max(len(full_text), 1), 3)
+
+        # 注入 coverage 属性（Pydantic 不允许未知字段，使用 model_dump 后修改）
+        return spans
+
+    @staticmethod
+    def _find_sources_for_text(text: str, research: list[dict]) -> list[dict]:
+        """为一段分析文本查找匹配的来源（从 research_results 的 sources 中）。"""
+        sources: list[dict] = []
+        text_lower = text.lower()
+        for ri in research:
+            if not isinstance(ri, dict):
+                continue
+            topic = str(ri.get("topic", "")).lower()
+            summary = str(ri.get("summary", "")).lower()
+            # 关键词匹配
+            words = set(text_lower.split())
+            topic_words = set(topic.split())
+            summary_words = set(summary.split())
+            overlap = words & (topic_words | summary_words)
+            if len(overlap) >= 2 or any(kw in text_lower for kw in topic_words if len(kw) > 3):
+                raw_sources = ri.get("sources", [])
+                for s in raw_sources:
+                    if isinstance(s, str) and s.startswith("http"):
+                        sources.append({
+                            "url": s,
+                            "title": ri.get("topic", "")[:50] if isinstance(ri.get("topic"), str) else "",
+                            "reliability": float(ri.get("confidence", 0.5)) if ri.get("confidence") else 0.5,
+                            "type": "web",
+                        })
+                    elif isinstance(s, dict) and s.get("link"):
+                        sources.append({
+                            "url": s["link"],
+                            "title": s.get("title", ri.get("topic", ""))[:50] if isinstance(ri.get("topic"), str) else "",
+                            "reliability": float(ri.get("confidence", 0.5)) if ri.get("confidence") else 0.5,
+                            "type": s.get("type", "web"),
+                        })
+        return sources[:5]  # 限制每个文本最多5个来源
 
     @staticmethod
     def _check_term_consistency(battlecard: dict) -> list[str]:

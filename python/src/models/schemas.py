@@ -226,3 +226,109 @@ class CitationReport(BaseSchema):
         description="可信度分布，如 {'1.0': 5, '0.8': 3}")
     overall_reliability_score: float = Field(default=0.0, ge=0.0, le=1.0)
     source_urls: list[SourceURL] = Field(default_factory=list, description="所有引用来源URL列表，供前端一键跳转")
+
+
+# ===================================================================
+# 1.2 强类型竞品知识 Schema（100% 强制约束，extra='forbid'）
+# ===================================================================
+
+class FeatureNode(BaseModel):
+    """层级功能树节点 — 递归定义竞品的功能体系"""
+    feature_name: str = Field(description="功能名称")
+    description: str = Field(default="", description="功能描述")
+    maturity_score: int = Field(default=5, ge=0, le=10, description="成熟度评分 0-10")
+    child_features: list["FeatureNode"] = Field(default_factory=list, description="子功能列表")
+
+    model_config = {"extra": "forbid"}
+
+
+class CompetitorFeatureTree(BaseModel):
+    """竞品功能树 — 完整的功能体系结构化描述"""
+    root_features: list[FeatureNode] = Field(default_factory=list, description="顶层功能列表")
+    hidden_optimizations: list[str] = Field(default_factory=list, description="隐蔽优化点（非公开功能）")
+    technical_advantages: list[str] = Field(default_factory=list, description="技术优势总结")
+
+    model_config = {"extra": "forbid"}
+
+
+class PricingTier(BaseModel):
+    """定价层级 — 单个定价套餐的完整信息"""
+    tier_name: str = Field(description="套餐名称，如 'Pro', 'Enterprise'")
+    price: float = Field(description="价格（统一转换为人民币元）")
+    user_segment: str = Field(description="目标用户群，如 '中小企业', '大型企业'")
+    included_features: list[str] = Field(default_factory=list, description="包含的功能列表")
+
+    model_config = {"extra": "forbid"}
+
+
+class PricingModel(BaseModel):
+    """定价模型 — 竞品完整定价策略"""
+    tier_list: list[PricingTier] = Field(default_factory=list, description="定价层级列表")
+    monetization_formula: str = Field(
+        default="",
+        description="变现公式，如 'take_rate 3% + ad_ARPU 12.5'",
+    )
+    discount_strategy: str = Field(default="", description="折扣策略描述")
+    price_positioning_vs_ours: str = Field(
+        default="parity", description="相对我方的价格定位",
+        pattern=r"^(much_lower|lower|parity|higher|much_higher)$",
+    )
+
+    model_config = {"extra": "forbid"}
+
+
+class UserPersona(BaseModel):
+    """用户画像 — 单个用户分群的完整画像"""
+    segment_name: str = Field(description="用户分群名称")
+    demographic_tags: list[str] = Field(default_factory=list, description="人口统计学标签")
+    pain_points: list[str] = Field(default_factory=list, description="痛点列表")
+    satisfaction_score: float = Field(default=0.0, ge=0.0, le=10.0, description="满意度评分")
+
+    model_config = {"extra": "forbid"}
+
+
+class UserPersonaCollection(BaseModel):
+    """用户画像集合 — 竞品用户全景图"""
+    top_personas: list[UserPersona] = Field(default_factory=list, description="主要用户画像列表")
+    nps_overall: float = Field(default=0.0, description="整体 NPS 净推荐值")
+    churn_risk_factors: list[str] = Field(default_factory=list, description="流失风险因素")
+
+    model_config = {"extra": "forbid"}
+
+
+# ===================================================================
+# 1.3 细粒度 1:N 信息溯源映射（SourceSpan）
+# ===================================================================
+
+class SourceSpan(BaseModel):
+    """细粒度溯源 — 将分析文本的每个片段绑定到原始来源。
+
+    每个 SourceSpan 精确标记报告中一段文字的数据来源，
+    前端渲染时自动高亮并支持点击跳转原始URL，实现「一键溯源直达」。
+    """
+    span_id: str = Field(description="唯一标识，如 'span_001'")
+    analysis_text_snippet: str = Field(description="分析报告中被标记的原文片段")
+    start_char_idx: int = Field(ge=0, description="在完整报告文本中的起始位置")
+    end_char_idx: int = Field(ge=0, description="在完整报告文本中的结束位置")
+    source_url: str = Field(description="原始来源URL")
+    source_title: str = Field(default="", description="来源标题")
+    reliability_score: float = Field(default=0.5, ge=0.0, le=1.0, description="来源可信度 0-1")
+    source_type: str = Field(
+        default="web", description="来源类型: web/paper/report/social_media/official",
+        pattern=r"^(web|paper|report|social_media|official)$",
+    )
+
+    model_config = {"extra": "forbid"}
+
+
+class SourceSpanCollection(BaseModel):
+    """一次分析任务中所有 SourceSpan 的集合"""
+    pipeline_run_id: str = Field(default="", description="关联的分析任务ID")
+    spans: list[SourceSpan] = Field(default_factory=list, description="溯源片段列表")
+    coverage_ratio: float = Field(default=0.0, ge=0.0, le=1.0, description="溯源覆盖率")
+    generated_at: str = Field(default="", description="生成时间 ISO 字符串")
+
+
+# ── Rebuild models with forward references (FeatureNode is self-referencing) ──
+FeatureNode.model_rebuild()
+SourceSpanCollection.model_rebuild()

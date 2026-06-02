@@ -12,7 +12,7 @@ DB_PATH = "ci_system.db"
 ALLOWED_SQL_TABLE_NAMES: set[str] = {
     "competitors", "analysis_records", "system_config", "config_history",
     "our_product", "feedback_records", "analysis_snapshots",
-    "evolution_feedback", "template_performance",
+    "evolution_feedback", "template_performance", "agent_traces",
 }
 ALLOWED_CONFIG_KEYS: set[str] = {"llm", "notification", "alert", "pipeline"}
 
@@ -158,6 +158,26 @@ def init_db():
         success_count INTEGER DEFAULT 0,
         updated_at TEXT NOT NULL,
         UNIQUE(agent_name, template_id)
+    )
+    ''')
+
+    # 10. Agent Trace 全链路埋点表（2.1 可观测性核心）
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS agent_traces (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        trace_id TEXT UNIQUE NOT NULL,
+        pipeline_run_id TEXT NOT NULL,
+        agent_name TEXT NOT NULL,
+        start_time TEXT NOT NULL,
+        end_time TEXT,
+        prompt_snapshot TEXT NOT NULL DEFAULT '',
+        input_state_json TEXT NOT NULL DEFAULT '{}',
+        llm_raw_response TEXT,
+        parsed_output_json TEXT,
+        token_usage_input INTEGER DEFAULT 0,
+        token_usage_output INTEGER DEFAULT 0,
+        error_message TEXT,
+        duration_ms INTEGER DEFAULT 0
     )
     ''')
 
@@ -803,3 +823,118 @@ def get_template_ranking() -> List[Dict[str, Any]]:
         }
         for r in rows
     ]
+
+
+# ============================================================
+# Agent Trace CRUD（2.1 全链路埋点持久化）
+# ============================================================
+
+def create_agent_trace(
+    trace_id: str,
+    pipeline_run_id: str,
+    agent_name: str,
+    start_time: str = "",
+    end_time: str = "",
+    prompt_snapshot: str = "",
+    input_state_json: str = "{}",
+    llm_raw_response: str = "",
+    parsed_output_json: str = "",
+    token_usage_input: int = 0,
+    token_usage_output: int = 0,
+    error_message: str = "",
+    duration_ms: int = 0,
+) -> Dict[str, Any]:
+    """写入一条 Agent Trace 记录"""
+    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+    cursor = conn.cursor()
+    now = datetime.utcnow().isoformat()
+    if not start_time:
+        start_time = now
+    cursor.execute(
+        """INSERT INTO agent_traces
+           (trace_id, pipeline_run_id, agent_name, start_time, end_time,
+            prompt_snapshot, input_state_json, llm_raw_response,
+            parsed_output_json, token_usage_input, token_usage_output,
+            error_message, duration_ms)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        (trace_id, pipeline_run_id, agent_name, start_time, end_time or now,
+         prompt_snapshot, input_state_json, llm_raw_response,
+         parsed_output_json, token_usage_input, token_usage_output,
+         error_message, duration_ms),
+    )
+    conn.commit()
+    trace_pk = cursor.lastrowid
+    conn.close()
+    return {"id": trace_pk, "trace_id": trace_id, "agent_name": agent_name}
+
+
+def get_trace_by_id(trace_id: str) -> Optional[Dict[str, Any]]:
+    """根据 trace_id 获取完整的 Agent Trace 详情"""
+    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT id, trace_id, pipeline_run_id, agent_name, start_time, end_time, "
+        "prompt_snapshot, input_state_json, llm_raw_response, parsed_output_json, "
+        "token_usage_input, token_usage_output, error_message, duration_ms "
+        "FROM agent_traces WHERE trace_id = ?",
+        (trace_id,),
+    )
+    row = cursor.fetchone()
+    conn.close()
+    if not row:
+        return None
+    return {
+        "id": row[0], "trace_id": row[1], "pipeline_run_id": row[2],
+        "agent_name": row[3], "start_time": row[4], "end_time": row[5],
+        "prompt_snapshot": row[6], "input_state_json": row[7],
+        "llm_raw_response": row[8], "parsed_output_json": row[9],
+        "token_usage_input": row[10], "token_usage_output": row[11],
+        "error_message": row[12], "duration_ms": row[13],
+    }
+
+
+def get_traces_by_pipeline(pipeline_run_id: str) -> List[Dict[str, Any]]:
+    """获取某个 Pipeline 运行的所有 Agent Trace 记录"""
+    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT id, trace_id, pipeline_run_id, agent_name, start_time, end_time, "
+        "token_usage_input, token_usage_output, error_message, duration_ms "
+        "FROM agent_traces WHERE pipeline_run_id = ? ORDER BY start_time ASC",
+        (pipeline_run_id,),
+    )
+    rows = cursor.fetchall()
+    conn.close()
+    return [
+        {
+            "id": r[0], "trace_id": r[1], "pipeline_run_id": r[2],
+            "agent_name": r[3], "start_time": r[4], "end_time": r[5],
+            "token_usage_input": r[6], "token_usage_output": r[7],
+            "error_message": r[8], "duration_ms": r[9],
+        }
+        for r in rows
+    ]
+
+
+def get_trace_stats() -> Dict[str, Any]:
+    """获取 Agent Trace 统计信息（Token 总消耗、平均延迟等）"""
+    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+    cursor = conn.cursor()
+    cursor.execute("SELECT COUNT(*) FROM agent_traces")
+    total_traces = cursor.fetchone()[0]
+    cursor.execute(
+        "SELECT agent_name, COUNT(*) as cnt, "
+        "SUM(token_usage_input) as tot_in, SUM(token_usage_output) as tot_out, "
+        "AVG(duration_ms) as avg_dur "
+        "FROM agent_traces GROUP BY agent_name ORDER BY cnt DESC"
+    )
+    by_agent = [
+        {
+            "agent_name": r[0], "trace_count": r[1],
+            "total_input_tokens": r[2] or 0, "total_output_tokens": r[3] or 0,
+            "avg_duration_ms": round(r[4] or 0, 1),
+        }
+        for r in cursor.fetchall()
+    ]
+    conn.close()
+    return {"total_traces": total_traces, "by_agent": by_agent}
