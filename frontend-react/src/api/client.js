@@ -1,4 +1,5 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8001';
+// ★ 使用 Vite 代理，所有请求走相对路径，彻底消除 CORS
+const API_BASE_URL = '';
 
 export const TOKEN_KEY = 'ci_agent_token';
 export const USER_KEY = 'ci_agent_user';
@@ -32,6 +33,16 @@ export function clearAuth() {
   storage()?.removeItem(USER_KEY);
 }
 
+/**
+ * ★ 免登录一键演示：自动注入伪造 token，跳过注册/登录
+ */
+export function autoDemoAuth() {
+  const demoToken = 'demo_token_ci_agent_2026';
+  const demoUser = { name: '演示用户', email: 'demo@ci-agent.local', role: '分析师' };
+  saveAuth(demoToken, demoUser);
+  return { token: demoToken, user: demoUser };
+}
+
 export function notifyAnalysisRecordsUpdated(detail = {}) {
   const payload = { ...detail, updatedAt: Date.now() };
   storage()?.setItem('ci_analysis_records_updated_at', String(payload.updatedAt));
@@ -63,6 +74,7 @@ async function request(path, options = {}) {
   const token = options.token ?? getStoredToken();
   const headers = {
     'Content-Type': 'application/json',
+    'Accept': 'application/json',
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
     ...(options.headers || {}),
   };
@@ -95,6 +107,7 @@ export function analyzeStream(payload, callbacks) {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
+      'Accept': 'text/event-stream',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
     body: JSON.stringify(payload),
@@ -157,19 +170,12 @@ export function analyzeStream(payload, callbacks) {
 }
 
 export const api = {
-  baseUrl: API_BASE_URL,
+  baseUrl: API_BASE_URL || '/',
 
-  register: (payload) =>
-    request('/api/auth/register', {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    }),
-  login: (payload) =>
-    request('/api/auth/login', {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    }),
-  me: (token) => request('/api/auth/me', { token }),
+  // ★ 注册/登录已废弃（免登录模式），保留兼容但不调用后端
+  register: () => Promise.resolve(autoDemoAuth()),
+  login: () => Promise.resolve(autoDemoAuth()),
+  me: () => Promise.resolve({ user: getStoredUser() }),
 
   health: () => request('/health'),
   systemInfo: () => request('/api/system-info'),

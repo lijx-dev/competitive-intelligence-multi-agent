@@ -6,25 +6,19 @@ import {
   Brain,
   CheckCircle2,
   ChevronRight,
-  Eye,
-  EyeOff,
   FileSearch,
   Globe,
   Layers,
-  Loader2,
-  Lock,
-  Mail,
   MessageSquare,
   Network,
   Search,
   ShieldCheck,
   Sparkles,
   Target,
-  User,
   Workflow,
   Zap,
 } from 'lucide-react';
-import { api } from '../api/client.js';
+import { autoDemoAuth } from '../api/client.js';
 
 /* ─────────────────────────────────────────────
    Hero 动态粒子背景
@@ -121,9 +115,9 @@ function FadeIn({ children, className = '', delay = 0 }) {
    数据定义
    ───────────────────────────────────────────── */
 const capabilities = [
-  { icon: Network, title: '11 智能体协作', text: '监控·研究·调研·验证·对比·报告·质检·溯源·推送，全链路自动化编排', accent: '#3b82f6', bg: 'rgba(59,130,246,0.08)' },
+  { icon: Network, title: '12 节点全链路', text: '9专业Agent+3功能节点，监控·研究·多模态·验证·对比·报告·质检·修复·溯源·图谱·推送，全链路自动化编排', accent: '#3b82f6', bg: 'rgba(59,130,246,0.08)' },
   { icon: Brain, title: '豆包大模型驱动', text: '基于 Doubao-Seed-2.0-lite 深度推理，每个 Agent 独立 Prompt 策略', accent: '#8b5cf6', bg: 'rgba(139,92,246,0.08)' },
-  { icon: Eye, title: '来源可追溯', text: '每条结论标注信息来源 URL，交叉验证置信度评分，杜绝 AI 幻觉', accent: '#10b981', bg: 'rgba(16,185,129,0.08)' },
+  { icon: Globe, title: '来源可追溯', text: '每条结论标注信息来源 URL，交叉验证置信度评分，杜绝 AI 幻觉', accent: '#10b981', bg: 'rgba(16,185,129,0.08)' },
   { icon: Target, title: '质量自修复', text: 'ReviewerAgent 评分 < 7 自动打回，Reflexion 循环定向修复至达标', accent: '#f59e0b', bg: 'rgba(245,158,11,0.08)' },
   { icon: BarChart3, title: '8 维度竞品矩阵', text: '产品·定价·用户·技术·市场·口碑·生态·服务，量化评分对比', accent: '#ec4899', bg: 'rgba(236,72,153,0.08)' },
   { icon: MessageSquare, title: '飞书闭环反馈', text: '报告卡片一键推送飞书群，团队在线反馈驱动 Agent 进化学习', accent: '#06b6d4', bg: 'rgba(6,182,212,0.08)' },
@@ -145,8 +139,11 @@ const dagFlow = [
 
 const moduleColors = { '采集': '#3b82f6', '分析': '#10b981', '报告': '#8b5cf6', '质量': '#f59e0b', '推送': '#6b7280' };
 
+// ★ 修正后的统计数字，与实际项目完全对齐
 const stats = [
-  { number: '11', label: '专职智能体', suffix: '' },
+  { number: '9', label: '专业Agent', suffix: '' },
+  { number: '3', label: '功能节点', suffix: '' },
+  { number: '12', label: '总DAG节点', suffix: '' },
   { number: '8', label: '对比维度', suffix: '' },
   { number: '100', label: '结论可溯源', suffix: '%' },
   { number: '3', label: '分钟出报告', suffix: 'min' },
@@ -223,22 +220,15 @@ function AnimatedNumber({ value, suffix = '' }) {
 }
 
 /* ══════════════════════════════════════════════
-   主组件
+   主组件 — 免登录，一键进入演示工作台
    ══════════════════════════════════════════════ */
 
 export function LandingPage({ onAuthenticated }) {
-  const [view, setView] = useState('landing');
-
-  if (view === 'login' || view === 'register') {
-    return (
-      <AuthScreen
-        mode={view}
-        onToggleMode={() => setView(view === 'login' ? 'register' : 'login')}
-        onBack={() => setView('landing')}
-        onAuthenticated={onAuthenticated}
-      />
-    );
-  }
+  const handleEnterDemo = () => {
+    // ★ 自动注入演示会话，跳过注册/登录
+    const session = autoDemoAuth();
+    onAuthenticated(session);
+  };
 
   return (
     <main className="lp">
@@ -255,9 +245,8 @@ export function LandingPage({ onAuthenticated }) {
             <a href="#tech">技术架构</a>
           </nav>
           <div className="lp-nav-actions">
-            <button className="lp-btn-ghost" type="button" onClick={() => setView('login')}>登录</button>
-            <button className="lp-btn-primary" type="button" onClick={() => setView('register')}>
-              免费体验
+            <button className="lp-btn-primary" type="button" onClick={handleEnterDemo}>
+              一键进入演示工作台
               <ArrowRight size={15} />
             </button>
           </div>
@@ -295,12 +284,9 @@ export function LandingPage({ onAuthenticated }) {
             对比分析、报告生成与质量审查 —— 每条结论可追溯、可验证
           </p>
           <div className="lp-hero-actions">
-            <button className="lp-btn-hero" type="button" onClick={() => setView('register')}>
-              <span>开始使用</span>
+            <button className="lp-btn-hero" type="button" onClick={handleEnterDemo}>
+              <span>一键进入演示工作台</span>
               <ArrowRight size={16} />
-            </button>
-            <button className="lp-btn-hero-outline" type="button" onClick={() => setView('login')}>
-              已有账号，直接登录
             </button>
           </div>
         </div>
@@ -387,7 +373,7 @@ export function LandingPage({ onAuthenticated }) {
         <FadeIn>
           <div className="lp-section-header">
             <span className="lp-kicker">多智能体协作</span>
-            <h2>LangGraph DAG — 11 节点编排</h2>
+            <h2>LangGraph DAG — 12 节点编排</h2>
             <p>基于有向无环图的状态机，支持条件分支、并行执行和 Reflexion 自修复循环</p>
           </div>
         </FadeIn>
@@ -439,7 +425,7 @@ export function LandingPage({ onAuthenticated }) {
             <h2>准备好开始你的 AI 竞品情报分析了吗？</h2>
             <p>输入竞品名称，多智能体立即开启信息采集、趋势研判、对比矩阵和结构化报告生成。</p>
             <div className="lp-cta-actions">
-              <button className="lp-btn-hero" type="button" onClick={() => setView('register')}>
+              <button className="lp-btn-hero" type="button" onClick={handleEnterDemo}>
                 <span>立即体验</span>
                 <ArrowRight size={16} />
               </button>
@@ -458,114 +444,6 @@ export function LandingPage({ onAuthenticated }) {
           <span>2026 字节跳动青训营 · AI 全栈赛道</span>
         </div>
       </footer>
-    </main>
-  );
-}
-
-/* ══════════════════════════════════════════════
-   登录 / 注册 — 全屏双栏布局
-   ══════════════════════════════════════════════ */
-
-function AuthScreen({ mode, onToggleMode, onBack, onAuthenticated }) {
-  const [showPassword, setShowPassword] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [form, setForm] = useState({ name: '', email: '', password: '' });
-
-  const isRegister = mode === 'register';
-
-  const update = (field, value) => {
-    setForm((f) => ({ ...f, [field]: value }));
-    setError('');
-  };
-
-  const submit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    setError('');
-    try {
-      const payload = isRegister
-        ? { name: form.name.trim(), email: form.email.trim(), password: form.password, role: '用户' }
-        : { email: form.email.trim(), password: form.password };
-      const result = isRegister ? await api.register(payload) : await api.login(payload);
-      onAuthenticated(result);
-    } catch (err) {
-      setError(err.message || '请求失败，请检查网络连接');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <main className="auth-screen">
-      <div className="auth-brand-side">
-        <div className="auth-brand-content">
-          <div className="lp-brand" style={{ color: '#fff' }}>
-            <div className="lp-brand-icon"><Zap size={18} /></div>
-            <span>竞智 CI</span>
-          </div>
-          <h1>AI 多智能体<br />竞品情报分析系统</h1>
-          <p>9个专业AI Agent + 3个功能辅助节点（共12节点）协同工作，从信息采集到结构化报告全流程自动化。</p>
-          <div className="auth-brand-features">
-            <div><CheckCircle2 size={16} /> 12 节点 DAG 实时编排</div>
-            <div><CheckCircle2 size={16} /> 每条结论可追溯可验证</div>
-            <div><CheckCircle2 size={16} /> Reflexion 质量自修复</div>
-            <div><CheckCircle2 size={16} /> 飞书推送闭环反馈</div>
-          </div>
-        </div>
-      </div>
-
-      <div className="auth-form-side">
-        <div className="auth-form-wrapper">
-          <button className="auth-back-btn" type="button" onClick={onBack}>
-            <ArrowRight size={16} style={{ transform: 'rotate(180deg)' }} />
-            返回首页
-          </button>
-          <div className="auth-form-header">
-            <h2>{isRegister ? '创建账号' : '欢迎回来'}</h2>
-            <p>{isRegister ? '注册后即可发起 AI 竞品分析' : '登录继续你的竞品分析工作'}</p>
-          </div>
-          <form className="auth-form-body" onSubmit={submit}>
-            {isRegister && (
-              <div className="auth-field">
-                <label htmlFor="auth-name">姓名</label>
-                <div className="auth-input-wrap">
-                  <User size={16} />
-                  <input id="auth-name" autoComplete="name" required value={form.name} onChange={(e) => update('name', e.target.value)} placeholder="输入你的姓名" />
-                </div>
-              </div>
-            )}
-            <div className="auth-field">
-              <label htmlFor="auth-email">邮箱</label>
-              <div className="auth-input-wrap">
-                <Mail size={16} />
-                <input id="auth-email" autoComplete="email" required type="email" value={form.email} onChange={(e) => update('email', e.target.value)} placeholder="name@example.com" />
-              </div>
-            </div>
-            <div className="auth-field">
-              <label htmlFor="auth-pw">密码</label>
-              <div className="auth-input-wrap">
-                <Lock size={16} />
-                <input id="auth-pw" autoComplete={isRegister ? 'new-password' : 'current-password'} minLength={6} required type={showPassword ? 'text' : 'password'} value={form.password} onChange={(e) => update('password', e.target.value)} placeholder="至少 6 位" />
-                <button className="auth-eye" type="button" onClick={() => setShowPassword((v) => !v)} tabIndex={-1}>
-                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                </button>
-              </div>
-            </div>
-            {error && <p className="auth-error">{error}</p>}
-            <button className="lp-btn-primary auth-submit" type="submit" disabled={loading}>
-              {loading && <Loader2 className="spin" size={16} />}
-              {isRegister ? '注册' : '登录'}
-            </button>
-            <p className="auth-switch">
-              {isRegister ? '已有账号？' : '还没有账号？'}
-              <button type="button" onClick={onToggleMode}>
-                {isRegister ? '去登录' : '注册新账号'}
-              </button>
-            </p>
-          </form>
-        </div>
-      </div>
     </main>
   );
 }

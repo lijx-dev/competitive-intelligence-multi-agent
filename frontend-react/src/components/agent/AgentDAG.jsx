@@ -5,23 +5,23 @@
  */
 
 import {
-  Search, Bell, BookOpen, Users, ShieldCheck,
+  Search, Bell, BookOpen, Users, ShieldCheck, Image, Network,
   BarChart3, Target, CheckCircle, Wrench, Link2, Send,
   Loader2, Check, X, Circle,
 } from 'lucide-react';
 import { dagNodes, dagModules, dagEdges } from '../../data/agentFlow.js';
 
-const iconMap = { Search, Bell, BookOpen, Users, ShieldCheck, BarChart3, Target, CheckCircle, Wrench, Link2, Send };
+const iconMap = { Search, Bell, BookOpen, Users, ShieldCheck, Image, Network, BarChart3, Target, CheckCircle, Wrench, Link2, Send };
 
 /** DAG 拓扑按行分组 */
 const dagRows = [
   ['monitor'],
-  ['alert', 'research', 'survey'],
-  ['fact_check'],
+  ['alert', 'research'],
+  ['multimodal', 'fact_check'],
   ['compare'],
   ['battlecard'],
   ['reviewer', 'targeted_fix'],
-  ['citation'],
+  ['citation', 'ontology'],
   ['feishu_push'],
 ];
 
