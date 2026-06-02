@@ -1,5 +1,5 @@
 /**
- * AgentDAG — 11 节点 DAG 实时可视化面板。
+ * AgentDAG — 12 节点 DAG 实时可视化面板。
  *
  * 用 CSS Grid 布局展示拓扑，节点状态实时变色。
  */

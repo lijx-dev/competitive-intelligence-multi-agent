@@ -309,7 +309,7 @@ export function FeishuIntegrationPage() {
                   <span>1</span>
                   <div>
                     <strong>Agent 生成报告</strong>
-                    <p>11 个 Agent 协作输出竞品分析</p>
+                    <p>9个专业Agent + 3个功能节点（12节点DAG）协作输出竞品分析</p>
                   </div>
                 </div>
                 <div className="feedback-step">

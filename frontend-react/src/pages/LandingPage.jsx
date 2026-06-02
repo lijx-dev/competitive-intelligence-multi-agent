@@ -154,14 +154,14 @@ const stats = [
 
 const techStack = [
   { title: 'React 19 + Vite 7', desc: 'SSE 实时流式渲染\nDAG 状态可视化\n结构化结果卡片', tags: ['TypeScript', 'SSE Stream', 'CSS Grid'] },
-  { title: 'FastAPI + LangGraph', desc: '11 节点 StateGraph 编排\n条件分支 + Reflexion 循环\n48 个 REST 端点', tags: ['Python', 'DAG', 'SQLite'] },
+  { title: 'FastAPI + LangGraph', desc: '12 节点 StateGraph 编排\n条件分支 + Reflexion 循环\n48 个 REST 端点', tags: ['Python', 'DAG', 'SQLite'] },
   { title: 'Doubao-Seed-2.0-lite', desc: '字节跳动豆包大模型\n结构化 JSON 输出\nToken 用量追踪审计', tags: ['LLM', 'Prompt', 'JSON Mode'] },
   { title: '全链路质量保障', desc: '4 维度评分体系\n交叉验证 + 来源溯源\nReflexion 自修复循环', tags: ['QA', 'Citation', 'Reflexion'] },
 ];
 
 const useCases = [
   { title: '输入竞品名称', desc: '例如"快手电商"，自动采集公开信息', step: '01' },
-  { title: 'Agent 协作分析', desc: '11 个智能体并行/串行执行，实时可视化进度', step: '02' },
+  { title: 'Agent 协作分析', desc: '9个专业Agent + 3个功能节点（共12节点）协同执行，实时可视化进度', step: '02' },
   { title: '结构化报告输出', desc: '对比矩阵、对战卡、用户调研、来源验证', step: '03' },
   { title: '团队闭环反馈', desc: '飞书推送 → 人工确认/纠正 → 进化引擎学习', step: '04' },
 ];
@@ -291,7 +291,7 @@ export function LandingPage({ onAuthenticated }) {
             竞品情报分析系统
           </h1>
           <p className="lp-hero-desc">
-            11 个 AI Agent 协同工作，自动完成竞品监控、深度研究、用户调研、
+            9个专业AI Agent + 3个功能辅助节点（共12节点）协同工作，自动完成竞品监控、深度研究、用户调研、
             对比分析、报告生成与质量审查 —— 每条结论可追溯、可验证
           </p>
           <div className="lp-hero-actions">
@@ -505,9 +505,9 @@ function AuthScreen({ mode, onToggleMode, onBack, onAuthenticated }) {
             <span>竞智 CI</span>
           </div>
           <h1>AI 多智能体<br />竞品情报分析系统</h1>
-          <p>11 个 AI Agent 协同工作，从信息采集到结构化报告全流程自动化。</p>
+          <p>9个专业AI Agent + 3个功能辅助节点（共12节点）协同工作，从信息采集到结构化报告全流程自动化。</p>
           <div className="auth-brand-features">
-            <div><CheckCircle2 size={16} /> 11 节点 DAG 实时编排</div>
+            <div><CheckCircle2 size={16} /> 12 节点 DAG 实时编排</div>
             <div><CheckCircle2 size={16} /> 每条结论可追溯可验证</div>
             <div><CheckCircle2 size={16} /> Reflexion 质量自修复</div>
             <div><CheckCircle2 size={16} /> 飞书推送闭环反馈</div>
