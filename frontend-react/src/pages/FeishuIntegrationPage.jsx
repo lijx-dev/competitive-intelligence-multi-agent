@@ -115,7 +115,7 @@ export function FeishuIntegrationPage() {
         <article className="metric-card info">
           <Bot size={22} />
           <span>活跃 Agent</span>
-          <strong>{infra?.active_agents || infra?.agent_count || 11}</strong>
+          <strong>{infra?.active_agents || infra?.agent_count || 12}</strong>
         </article>
         <article className="metric-card info">
           <Bell size={22} />

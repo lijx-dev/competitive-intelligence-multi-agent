@@ -252,6 +252,89 @@ SCENARIO1_REVIEW_FEEDBACK = {
     }
 }
 
+SCENARIO1_MULTIMODAL_RESULTS = {
+    "multimodal_findings": [
+        {
+            "topic": "[多模态] 快手电商首页海报视觉分析",
+            "summary": "通过Doubao VL分析快手APP商城新版截图：识别到「全站推广」入口按钮位置显著，配色为品牌蓝色，页面布局中货架电商商品卡片占比达60%，明显强化了浏览购物心智。",
+            "key_findings": ["商城一级入口高亮展示", "货架商品卡片占比60%", "新图标品牌一致性高"],
+            "confidence": 0.88,
+            "sources": ["product_screenshot_kuaishou_mall.png"],
+        },
+        {
+            "topic": "[多模态] 快手直播带货直播间UI分析",
+            "summary": "分析热门直播间UI布局：底部购物车组件尺寸放大20%，商品弹窗弹出速度优化至0.3秒，用户点击转化率提升约12%。",
+            "key_findings": ["购物车组件放大20%", "弹窗速度优化至0.3秒", "预估转化率提升12%"],
+            "confidence": 0.82,
+            "sources": ["live_stream_ui_analysis.png"],
+        }
+    ]
+}
+
+SCENARIO1_ONTOLOGY_GRAPH = {
+    "ontology_graph": {
+        "nodes": [
+            {"id": "comp_1", "label": "快手电商", "layer": "L1", "entity_type": "Competitor", "color": "#2563eb", "size": 28, "properties": {"quality_score": 7.0}},
+            {"id": "prod_1", "label": "快手电商核心产品", "layer": "L1", "entity_type": "Product", "color": "#16a34a", "size": 20, "properties": {}},
+            {"id": "dim_1", "label": "货架电商", "layer": "L2", "entity_type": "Feature", "color": "#9333ea", "size": 16, "properties": {"competitor_score": 7.0}},
+            {"id": "dim_2", "label": "全站推广投放", "layer": "L2", "entity_type": "Feature", "color": "#9333ea", "size": 16, "properties": {"competitor_score": 7.5}},
+            {"id": "evt_1", "label": "GMV 1.2万亿突破", "layer": "L3", "entity_type": "MarketEvent", "color": "#ea580c", "size": 14, "properties": {"confidence": 0.85}},
+            {"id": "evt_2", "label": "商城改版上线", "layer": "L3", "entity_type": "MarketEvent", "color": "#ea580c", "size": 14, "properties": {"confidence": 0.90}},
+            {"id": "ins_1", "label": "差异化下沉市场优势", "layer": "L4", "entity_type": "Insight", "color": "#059669", "size": 14, "properties": {}},
+            {"id": "task_1", "label": "快手电商监控任务", "layer": "L5", "entity_type": "MonitorTask", "color": "#6b7280", "size": 14, "properties": {}},
+        ],
+        "relations": [
+            {"id": "r1", "source": "comp_1", "target": "prod_1", "relation_type": "COMPETITOR_HAS_PRODUCT", "weight": 1.0},
+            {"id": "r2", "source": "prod_1", "target": "dim_1", "relation_type": "PRODUCT_HAS_FEATURE", "weight": 1.0},
+            {"id": "r3", "source": "prod_1", "target": "dim_2", "relation_type": "PRODUCT_HAS_FEATURE", "weight": 1.0},
+            {"id": "r4", "source": "comp_1", "target": "evt_1", "relation_type": "COMPETITOR_HAS_EVENT", "weight": 0.85},
+            {"id": "r5", "source": "comp_1", "target": "evt_2", "relation_type": "COMPETITOR_HAS_EVENT", "weight": 0.90},
+            {"id": "r6", "source": "comp_1", "target": "ins_1", "relation_type": "COMPETITOR_HAS_SENTIMENT", "weight": 0.80},
+            {"id": "r7", "source": "task_1", "target": "comp_1", "relation_type": "TASK_MONITORS_COMPETITOR", "weight": 1.0},
+        ],
+        "stats": {"nodes": 8, "relations": 7, "layers": 5}
+    }
+}
+
+SCENARIO1_STRUCTURED_SCHEMAS = {
+    "feature_tree": {
+        "root_features": [
+            {
+                "feature_name": "货架电商系统", "description": "快手电商新上线的货架电商一级入口功能", "maturity_score": 7,
+                "child_features": [
+                    {"feature_name": "品牌旗舰店专区", "description": "国际品牌入驻专区", "maturity_score": 6, "child_features": []},
+                    {"feature_name": "限时秒杀模块", "description": "秒杀活动组件", "maturity_score": 8, "child_features": []},
+                ]
+            }
+        ],
+        "hidden_optimizations": ["AI选品推荐正在灰度上线", "搜索排序算法V3迭代中"],
+        "technical_advantages": ["多模态内容检索速度比上一版本快40%"]
+    },
+    "pricing_model": {
+        "tier_list": [
+            {"tier_name": "基础商家", "price": 0.03, "user_segment": "中小商家", "included_features": ["基础直播带货", "标准客服"]},
+            {"tier_name": "品牌商家", "price": 0.05, "user_segment": "品牌大客户", "included_features": ["全站推广", "专属运营", "品牌旗舰店权限"]},
+        ],
+        "monetization_formula": "佣金 2-5% + 广告ARPU 8.5",
+        "discount_strategy": "新商家前3个月佣金减半优惠",
+        "price_positioning_vs_ours": "lower"
+    },
+    "user_persona_collection": {
+        "top_personas": [
+            {
+                "segment_name": "老铁忠实用户", "demographic_tags": ["三四线城市", "25-45岁", "男性为主"],
+                "pain_points": ["价格敏感", "信任主播推荐"], "satisfaction_score": 4.2
+            },
+            {
+                "segment_name": "下沉市场消费者", "demographic_tags": ["低线城市", "家庭主妇", "追求性价比"],
+                "pain_points": ["对品牌敏感度低", "复购率高"], "satisfaction_score": 4.0
+            }
+        ],
+        "nps_overall": 36,
+        "churn_risk_factors": ["向抖音流失", "年轻用户转短视频新平台"]
+    }
+}
+
 SCENARIO1_CITATION_REPORT = {
     "citation_report": {
         "total_sources": 15,
@@ -645,11 +728,14 @@ SCENARIO_MAP = {
         "competitor": SCENARIO1_COMPETITOR,
         "monitor": SCENARIO1_MONITOR_RESULTS,
         "research": SCENARIO1_RESEARCH_INSIGHTS,
+        "multimodal": SCENARIO1_MULTIMODAL_RESULTS,
         "factcheck": SCENARIO1_FACTCHECK_RESULTS,
         "comparison": SCENARIO1_COMPARISON_MATRIX,
         "battlecard": SCENARIO1_BATTLECARD,
         "review": SCENARIO1_REVIEW_FEEDBACK,
         "citation": SCENARIO1_CITATION_REPORT,
+        "ontology": SCENARIO1_ONTOLOGY_GRAPH,
+        "structured_schemas": SCENARIO1_STRUCTURED_SCHEMAS,
         "decision_logs": SCENARIO1_AGENT_DECISION_LOGS,
     },
     "scenario2": {
