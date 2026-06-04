@@ -39,47 +39,48 @@ except ImportError as _e:
     logger.debug("competitive_intelligence_framework 未就绪: %s", _e)
 
 SYSTEM_PROMPT = """\
-You are a Competitive Intelligence Comparison Agent.
-Given OUR PRODUCT's real information and RESEARCH INSIGHTS about a competitor,
-produce a structured comparison matrix scoring BOTH products across these
-dimensions (each scored 0-10):
+你是一个竞品情报对比分析智能体（Compare Agent）。
+你必须使用简体中文输出所有内容。
+根据我方产品的真实信息和对竞品的研究洞察，生成结构化的对比评分矩阵，
+对以下维度进行双方评分（每个维度 0-10 分）：
 
-  1. Product Features
-  2. Pricing & Value
-  3. User Experience / UX
-  4. Market Share & Momentum
-  5. Customer Sentiment / Reviews
-  6. Technology & Innovation
-  7. Ecosystem & Integrations
-  8. Support & Documentation
+  1. 产品功能完整度
+  2. 定价与性价比
+  3. 用户体验
+  4. 市场份额与增长势头
+  5. 客户口碑与评价
+  6. 技术与创新能力
+  7. 生态与集成能力
+  8. 服务与支持体系
 
-CRITICAL RULES:
-- our_score MUST be based on the provided OUR PRODUCT INFO, not guessed.
-- competitor_score MUST be based on the provided RESEARCH INSIGHTS.
-- If a dimension lacks data, score 5.0 (neutral) and note in "notes" that data is insufficient.
-- notes field should be specific, comparing our real data vs competitor data.
+关键规则：
+- our_score 必须基于提供的我方产品信息，不能凭空猜测
+- competitor_score 必须基于提供的竞品研究洞察
+- 如果某维度缺少数据，评分设为 5.0（中性），并在 notes 中注明"数据不足"
+- notes 字段应具体对比我方真实数据与竞品数据的差异
 
-Return a JSON object with keys:
-  dimensions: [{dimension, our_score, competitor_score, notes}],
-  overall_assessment: <string>.
+返回包含以下键的 JSON 对象：
+  dimensions: [{dimension（维度名，中文）, our_score, competitor_score, notes（中文说明）}],
+  overall_assessment: <中文总体评价字符串>。
+所有输出必须是简体中文。
 """
 
 DIMENSIONS = [
-    "Product Features",
-    "Pricing & Value",
-    "User Experience",
-    "Market Share & Momentum",
-    "Customer Sentiment",
-    "Technology & Innovation",
-    "Ecosystem & Integrations",
-    "Support & Documentation",
+    "产品功能完整度",
+    "定价与性价比",
+    "用户体验",
+    "市场份额与增长势头",
+    "客户口碑与评价",
+    "技术与创新能力",
+    "生态与集成能力",
+    "服务与支持体系",
 ]
 
 
 def _format_product_info(info: dict) -> str:
     """将我方产品 dict 格式化为 LLM 可读的结构化文本。"""
     if not info:
-        return "⚠️ OUR PRODUCT INFO NOT CONFIGURED. Use neutral scores (5.0) for all our_score and note this clearly."
+        return "⚠️ 我方产品信息未配置。请对所有 our_score 使用中性评分（5.0），并在说明中注明数据不足。"
 
     name = info.get("name", "My Product")
     features = info.get("core_features", [])
@@ -89,31 +90,31 @@ def _format_product_info(info: dict) -> str:
     advantages = info.get("competitive_advantages", [])
     weaknesses = info.get("weaknesses", [])
 
-    parts = [f"Product Name: {name}"]
+    parts = [f"产品名称: {name}"]
 
     if features:
-        parts.append("Core Features:\n  - " + "\n  - ".join(features))
+        parts.append("核心功能:\n  - " + "\n  - ".join(features))
     else:
-        parts.append("Core Features: (not specified)")
+        parts.append("核心功能: （未指定）")
 
-    parts.append(f"Pricing Model: {pricing}")
+    parts.append(f"定价模式: {pricing}")
 
     if tech:
-        parts.append("Tech Stack:\n  - " + "\n  - ".join(tech))
+        parts.append("技术栈:\n  - " + "\n  - ".join(tech))
     else:
-        parts.append("Tech Stack: (not specified)")
+        parts.append("技术栈: （未指定）")
 
-    parts.append(f"Target Market: {market if market else '(not specified)'}")
+    parts.append(f"目标市场: {market if market else '（未指定）'}")
 
     if advantages:
-        parts.append("Competitive Advantages:\n  - " + "\n  - ".join(advantages))
+        parts.append("竞争优势:\n  - " + "\n  - ".join(advantages))
     else:
-        parts.append("Competitive Advantages: (not specified)")
+        parts.append("竞争优势: （未指定）")
 
     if weaknesses:
-        parts.append("Known Weaknesses:\n  - " + "\n  - ".join(weaknesses))
+        parts.append("已知劣势:\n  - " + "\n  - ".join(weaknesses))
     else:
-        parts.append("Known Weaknesses: (not specified)")
+        parts.append("已知劣势: （未指定）")
 
     return "\n".join(parts)
 
@@ -245,32 +246,31 @@ class CompareAgent:
             confidence = fact_check_result.get("confidence_adjustments", {})
             if inconsistencies:
                 fc_note = (
-                    "\n\n=== FACT CHECK WARNING ===\n"
-                    "The following claims were flagged as inconsistent or unverified. "
-                    "Reduce confidence in competitor_score for dimensions relying on these claims:\n"
+                    "\n\n=== 交叉验证警告 ===\n"
+                    "以下结论被标记为不一致或未验证，请在依赖这些结论的维度上降低 competitor_score 置信度：\n"
                     f"{json.dumps(inconsistencies[:5], ensure_ascii=False)}\n"
                 )
             if confidence.get("verification_rate", 1.0) < 0.5:
                 fc_note += (
-                    f"\nOverall verification rate is only {confidence.get('verification_rate', 0)*100:.0f}%. "
-                    "Please clearly note this in the overall_assessment."
+                    f"\n整体验证率仅为 {confidence.get('verification_rate', 0)*100:.0f}%，请在 overall_assessment 中明确注明。"
                 )
 
         # 组装增强上下文
-        enrichment_block = f"\n\n=== DATA ENRICHMENT (03方案多源融合分析) ===\n{enrichment_text}\n" if enrichment_text else ""
+        enrichment_block = f"\n\n=== 数据增强（多源融合分析）===\n{enrichment_text}\n" if enrichment_text else ""
 
         user_msg = (
-            f"=== OUR PRODUCT INFO (use this for our_score) ===\n"
+            f"=== 我方产品信息（用于 our_score 评分依据）===\n"
             f"{our_info_text}\n\n"
-            f"=== COMPETITOR: {competitor} ===\n\n"
-            f"=== RESEARCH INSIGHTS (use this for competitor_score) ===\n"
+            f"=== 竞品: {competitor} ===\n\n"
+            f"=== 研究洞察（用于 competitor_score 评分依据）===\n"
             f"{research_text}"
             f"{fc_note}"
             f"{enrichment_block}\n\n"
-            "Generate a comparison matrix as JSON. Base our_score on the OUR PRODUCT INFO above. "
-            "Base competitor_score on the RESEARCH INSIGHTS above. "
-            "If DATA ENRICHMENT indicates conflicts or low confidence for a dimension, "
-            "reflect this by lowering the competitor_score and noting the uncertainty."
+            "请生成JSON格式的对比矩阵。our_score 基于上述我方产品信息，"
+            "competitor_score 基于上述研究洞察。"
+            "如果数据增强分析显示某维度存在冲突或低置信度，"
+            "请降低 competitor_score 并在 notes 中注明不确定性。"
+            "所有输出必须是简体中文。"
         )
         # 注入 L3 方法论知识
         from ..services.rag.rag_agent import RAGEnhancedAgent
@@ -311,7 +311,7 @@ class CompareAgent:
                 DimensionScore(dimension=d, our_score=5.0, competitor_score=5.0, notes="LLM 响应异常，使用默认评分")
                 for d in DIMENSIONS
             ],
-            overall_assessment="无法解析 LLM 返回的对比矩阵，已使用默认值。",
+            overall_assessment="无法解析 LLM 返回的对比矩阵，已使用默认值。请检查 LLM 配置后重试。",
         )
 
     @staticmethod

@@ -81,18 +81,19 @@ class RedisConfig:
 @dataclass(frozen=True)
 class NotificationConfig:
     slack_webhook: str = os.getenv("SLACK_WEBHOOK_URL", "")
-    slack_enabled: bool = False
+    slack_enabled: bool = bool(os.getenv("SLACK_WEBHOOK_URL", ""))
     dingtalk_webhook: str = os.getenv("DINGTALK_WEBHOOK_URL", "")
-    dingtalk_enabled: bool = False
+    dingtalk_enabled: bool = bool(os.getenv("DINGTALK_WEBHOOK_URL", ""))
     feishu_webhook_url: str = os.getenv("FEISHU_WEBHOOK_URL", "")
     feishu_webhook_secret: str = os.getenv("FEISHU_WEBHOOK_SECRET", "")
-    feishu_enabled: bool = False
+    # ★ Bug1修复：FEISHU_WEBHOOK_URL 非空时自动启用，不再需要手动设 enabled
+    feishu_enabled: bool = bool(os.getenv("FEISHU_WEBHOOK_URL", ""))
     email_smtp_host: str = os.getenv("EMAIL_SMTP_HOST", "")
     email_smtp_port: int = int(os.getenv("EMAIL_SMTP_PORT", "587"))
     email_from: str = os.getenv("EMAIL_FROM", "")
     email_password: str = os.getenv("EMAIL_PASSWORD", "")
     email_to: str = ""
-    email_enabled: bool = False
+    email_enabled: bool = bool(os.getenv("EMAIL_SMTP_HOST", ""))
 
 
 @dataclass(frozen=True)

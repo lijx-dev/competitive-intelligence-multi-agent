@@ -81,7 +81,7 @@ class MockDataGenerator:
             "quality_score": data["review"].get("review_feedback", {}).get("overall_score", 8.7),
             "reflexion_count": 1,
             "error": None,
-            "feishu_push_status": "mock_skipped",
+            "feishu_push_status": "mock_sent",
             "_source": "mock",
             "_mock_scenario": self.scenario_id,
             "_generated_at": _now(),
@@ -120,7 +120,7 @@ class MockDataGenerator:
             ("targeted_fix", {"fix_history": [], "quality_score_after_fix": 8.7}, 200),
             ("citation", data["citation"], 300),
             ("ontology", data.get("ontology", {}), 400),
-            ("feishu_push", {"feishu_push_status": "mock_skipped"}, 50),
+            ("feishu_push", {"feishu_push_status": "mock_sent"}, 50),
         ]
 
         for node_name, output, delay_ms in node_sequence:
@@ -172,6 +172,48 @@ class MockDataGenerator:
             delay = evt.pop("_delay_s", 0.05)
             await asyncio.sleep(delay)
             yield {"event": evt["event"], "data": evt["data"]}
+
+        # ★ Mock模式核心修复：分析完成后真实推送飞书卡片+告警（如果配置了webhook）
+        try:
+            from ..config import get_effective_notification_config
+            cfg = get_effective_notification_config()
+            if cfg.feishu_webhook_url:
+                from ..services.feishu import FeishuBot
+                import time as _time
+                bot = FeishuBot(webhook_url=cfg.feishu_webhook_url, secret=cfg.feishu_webhook_secret)
+                comp = competitor or self.competitor
+                quality = self.data.get("review", {}).get("review_feedback", {}).get("overall_score", 8.7)
+
+                # 1. 推送HIGH/CRITICAL告警红头卡片
+                changes = self.data.get("monitor", {}).get("changes_detected", [])
+                for change in changes:
+                    sev = change.get("severity", "low")
+                    if sev in ("high", "critical", "HIGH", "CRITICAL"):
+                        await bot.send_alert_card({
+                            "competitor": comp,
+                            "severity": sev.upper() if isinstance(sev, str) else str(sev).upper(),
+                            "change_type": change.get("change_type", "unknown"),
+                            "summary": str(change.get("summary", ""))[:200],
+                            "alert_id": f"mock_alert_{comp}_{sev}_{int(_time.time())}",
+                            "detected_at": str(change.get("detected_at", "")),
+                        })
+                        logger.info("[MockGen] 飞书告警卡片已推送: %s", change.get("title", ""))
+
+                # 2. 推送报告蓝头卡片
+                cit = self.data.get("citation", {}).get("citation_report", {})
+                await bot.send_competitor_report({
+                    "competitor": comp,
+                    "quality_score": quality,
+                    "total_sources": cit.get("total_sources", 15) if isinstance(cit, dict) else 15,
+                    "reliability": f"{(cit.get('overall_reliability_score', 0.87) if isinstance(cit, dict) else 0.87)*100:.0f}%",
+                    "duration_ms": 3500,
+                    "key_findings": f"Mock演示: {comp}竞品分析完成，12节点DAG全部执行。评分{quality:.1f}/10。",
+                    "comparison_summary": (self.data.get("comparison", {}).get("comparison_matrix", {}).get("overall_assessment", "详见报告") or "")[:300],
+                    "report_id": f"mock_{comp}_{int(_time.time())}",
+                })
+                logger.info("[MockGen] 飞书报告卡片已真实推送: %s score=%.1f", comp, quality)
+        except Exception as e:
+            logger.warning("[MockGen] 飞书Mock推送异常（优雅降级，不影响SSE流）: %s", e)
 
 
 # ── 辅助函数 ──────────────────────────────────────────

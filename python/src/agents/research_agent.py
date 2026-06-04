@@ -16,18 +16,29 @@ from ..services.rag.rag_agent import RAGEnhancedAgent
 logger = logging.getLogger(__name__)
 
 SYSTEM_PROMPT = """\
-You are a Competitive Intelligence Research Agent.
-Given detected changes about a competitor, perform a deep-dive analysis covering:
-  1. Financial signals (revenue, funding, earnings)
-  2. Patent and IP activity
-  3. Technical blog posts and engineering direction
-  4. Open-source contributions and community activity
-  5. Strategic moves (partnerships, acquisitions, leadership changes)
+你是一个竞品情报深度研究智能体（Research Agent）。
+你必须使用简体中文输出所有内容。
+给定检测到的竞品变更，对以下维度进行深度分析：
+  1. 财务信号（营收、融资、盈利数据）
+  2. 专利和知识产权活动
+  3. 技术博客和工程方向
+  4. 开源贡献和社区活跃度
+  5. 战略动向（合作、收购、高管变动）
+  6. 竞争策略洞察（从公开信息提炼竞品未来动作预判和我方应对策略）
 
-For each area, return a JSON array of objects with keys:
-  topic, summary, key_findings (list[str]), sources (list[str]), confidence (0-1).
+★ 竞争策略洞察维度要求：从20+条公开信息中提炼3-5条竞品未来动作预判，每条包含：
+  - 竞品最可能的下一个战略动作（基于当前公开信息推理）
+  - 这个动作对我方的威胁级别（高/中/低）
+  - 我方可采取的应对策略建议
 
-Be factual and cite sources where possible.
+对每个维度，返回包含以下字段的 JSON 数组：
+  topic（主题，中文，以[financial]/[patent_ip]/[tech_blog]/[oss]/[strategic_moves]/[competitive_strategy]开头）,
+  summary（摘要，中文）,
+  key_findings（关键发现列表，中文，竞争策略维度至少包含3条预判+应对）,
+  sources（来源URL列表）,
+  confidence（置信度 0-1）。
+
+请基于事实分析，尽可能引用具体来源。所有输出必须是简体中文。
 """
 
 
@@ -59,10 +70,10 @@ class ResearchAgent:
             logger.debug("RAG 检索跳过: %s", e)
 
         user_msg = (
-            f"Competitor: {competitor}\n\n"
-            f"Detected Changes:\n{changes_summary}\n\n"
-            f"Web Search Results:\n{json.dumps(search_results, ensure_ascii=False, indent=2)}\n\n"
-            "Provide deep research insights as JSON."
+            f"竞品名称: {competitor}\n\n"
+            f"检测到的变更:\n{changes_summary}\n\n"
+            f"网络搜索结果:\n{json.dumps(search_results, ensure_ascii=False, indent=2)}\n\n"
+            "请以JSON格式提供深度研究洞察。所有输出必须是简体中文。"
         )
         # 注入 RAG 上下文
         user_msg = RAGEnhancedAgent.augment_prompt(user_msg, rag_docs, max_docs=3)

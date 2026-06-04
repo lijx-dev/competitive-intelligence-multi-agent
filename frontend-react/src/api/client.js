@@ -246,4 +246,16 @@ export const api = {
 
   updateConfig: (payload) =>
     request('/api/config', { method: 'PUT', body: JSON.stringify(payload) }),
+
+  // ── 飞书CLI全局总调度官 ──
+  fetchJson: (path, options) => request(path, options),
+  feishuCommand: (text, mode = 'mock') =>
+    request('/api/v1/feishu/command', {
+      method: 'POST',
+      body: JSON.stringify({ text, mode }),
+    }),
+  feishuTaskStatus: (taskId) => request(`/api/v1/feishu/task-status/${taskId}`),
+  feishuSchedulerTasks: () => request('/api/v1/feishu/scheduler/tasks'),
+  feishuSchedulerStats: () => request('/api/v1/feishu/scheduler/stats'),
+  feishuSchedulerTest: () => request('/api/v1/feishu/scheduler/test', { method: 'POST' }),
 };

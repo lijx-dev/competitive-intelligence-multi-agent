@@ -7,6 +7,7 @@ import {
   MessageCircle,
   PanelLeft,
   Play,
+  Rocket,
 } from 'lucide-react';
 import { api } from '../../api/client.js';
 import { SystemDashboard } from '../../pages/SystemDashboard.jsx';
@@ -14,6 +15,7 @@ import { AgentWorkspace } from '../../pages/AgentWorkspace.jsx';
 import { KnowledgeBasePage } from '../../pages/KnowledgeBasePage.jsx';
 import { TraceabilityPage } from '../../pages/TraceabilityPage.jsx';
 import { FeishuIntegrationPage } from '../../pages/FeishuIntegrationPage.jsx';
+import { FeishuSchedulerPage } from '../../pages/FeishuSchedulerPage.jsx';
 
 const pages = [
   { id: 'dashboard', label: '总览', desc: '系统状态与业务闭环', icon: Home, component: SystemDashboard },
@@ -21,6 +23,7 @@ const pages = [
   { id: 'knowledge', label: '知识库', desc: '竞品、报告、结构化沉淀', icon: BookOpen, component: KnowledgeBasePage },
   { id: 'trace', label: '可观测溯源', desc: '日志、任务图、调用用量', icon: Activity, component: TraceabilityPage },
   { id: 'feishu', label: '飞书闭环', desc: '推送测试与人工反馈', icon: MessageCircle, component: FeishuIntegrationPage },
+  { id: 'scheduler', label: '飞书调度官', desc: 'CLI全局总调度 — 群内命令解析', icon: Rocket, component: FeishuSchedulerPage },
 ];
 
 export function SystemShell({ user, onLogout }) {

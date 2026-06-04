@@ -88,23 +88,24 @@ class TestFeedbackLoop:
 
         result = await reviewer(state)
 
-        assert result["quality_score"] == 7.5
+        # ★ 新版加权评分: accuracy(8)*0.40 + completeness(7)*0.30 + citation(7)*0.15 + actionability(7)*0.15 = 7.4
+        assert abs(result["quality_score"] - 7.4) < 0.01
         updated_history = result["fix_history"]
-        assert updated_history[-1]["score_after"] == 7.5
-        assert updated_history[-1]["improvement"] == 2.5  # 7.5 - 5.0
+        assert abs(updated_history[-1]["score_after"] - 7.4) < 0.01
+        assert abs(updated_history[-1]["improvement"] - 2.4) < 0.01  # 7.4 - 5.0
 
     def test_after_review_partial_completion(self):
-        """3次修复后仍<7必须标记partial completion，不阻塞流程"""
+        """3次修复后仍<6.2必须标记partial completion，不阻塞流程（新阈值6.2）"""
         from src.graph.workflow import _after_review
 
-        # 3次修复后score仍<7
-        state = {"quality_score": 6.0, "targeted_fix_count": 3}
+        # 3次修复后score仍<6.2
+        state = {"quality_score": 5.5, "targeted_fix_count": 3}
         result = _after_review(state)
         assert result == "citation"
         assert state.get("battlecard_partial_completion") is True
-        assert "3次修复后score=6.0" in state.get("battlecard_partial_reason", "")
+        assert "5.5" in state.get("battlecard_partial_reason", "")
 
-        # score>=7直接通过
+        # score>=6.2直接通过（新阈值）
         state2 = {"quality_score": 7.5, "targeted_fix_count": 1}
         assert _after_review(state2) == "citation"
 

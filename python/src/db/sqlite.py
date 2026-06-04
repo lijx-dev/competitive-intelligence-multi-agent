@@ -2,8 +2,11 @@
 from __future__ import annotations
 import sqlite3
 import json
+import logging
 from datetime import datetime
 from typing import Optional, List, Dict, Any
+
+logger = logging.getLogger(__name__)
 
 # 数据库文件路径（放在python目录下，自动生成）
 DB_PATH = "ci_system.db"
@@ -101,6 +104,59 @@ def init_db():
     INSERT OR IGNORE INTO our_product (id, name, core_features, pricing_model, tech_stack, target_market, competitive_advantages, weaknesses, updated_at)
     VALUES (1, 'My Product', '[]', '订阅制', '[]', '', '[]', '[]', datetime('now'))
     ''')
+    # ★ 首次启动时自动预置「字节跳动 抖音电商」完整基准数据
+    # 如果 core_features 仍为空（首次安装/数据被清空），自动填充
+    cursor.execute("SELECT core_features FROM our_product WHERE id = 1")
+    row = cursor.fetchone()
+    if row and (not row[0] or row[0] == '[]'):
+        import json as _json
+        baseline = {
+            "name": "字节跳动 抖音电商",
+            "core_features": _json.dumps([
+                "AI驱动的内容推荐引擎（豆包大模型）",
+                "千川智能广告投放系统",
+                "品牌自播工具套装（直播+短视频+图文）",
+                "达人撮合平台（星图）",
+                "即时零售（小时达）",
+                "抖店商家后台（数据分析+经营诊断）",
+                "抖音商城（货架电商入口）",
+                "飞书集成（企业协同+客户管理）"
+            ], ensure_ascii=False),
+            "pricing_model": "佣金制 3-8% + 广告费（千川竞价）",
+            "tech_stack": _json.dumps([
+                "豆包大模型（Seed 2.0）", "火山引擎推荐系统",
+                "即梦AI（视频/图片生成）", "云原生基础设施（ByteSail）",
+                "实时数据管道（Kafka+Flink）", "A/B实验平台（Libra）"
+            ], ensure_ascii=False),
+            "target_market": "全球品牌商家 + 内容创作者 + 本地生活服务商",
+            "competitive_advantages": _json.dumps([
+                "7亿+ DAU 流量规模，全球领先",
+                "AI推荐算法全球第一梯队，转化率行业标杆",
+                "内容-电商-本地生活超级APP生态闭环",
+                "豆包+即梦AI创作工具矩阵，AIGC能力溢出",
+                "品牌商家100万+，覆盖头部国际品牌到新锐国货",
+                "飞书+火山引擎提供企业服务协同"
+            ], ensure_ascii=False),
+            "weaknesses": _json.dumps([
+                "流量成本持续攀升，中小商家获客压力大",
+                "下沉市场渗透不足（三四线城市占比低于快手10%）",
+                "跨境电商起步晚，海外物流仓储能力待建",
+                "社区黏性弱于快手（粉丝复购率低15%）",
+                "AI供应链和物流AI布局几乎空白",
+                "AI客服与对话系统起步晚，电商场景专业度不足"
+            ], ensure_ascii=False),
+        }
+        cursor.execute(
+            """UPDATE our_product SET
+               name = ?, core_features = ?, pricing_model = ?, tech_stack = ?,
+               target_market = ?, competitive_advantages = ?, weaknesses = ?,
+               updated_at = datetime('now')
+               WHERE id = 1""",
+            (baseline["name"], baseline["core_features"], baseline["pricing_model"],
+             baseline["tech_stack"], baseline["target_market"],
+             baseline["competitive_advantages"], baseline["weaknesses"])
+        )
+        logger.info("我方产品基准数据已自动预置：字节跳动 抖音电商（8项核心功能+6项优势+6项劣势）")
 
     # 6. 飞书反馈记录表（人类反馈 → 自进化闭环）
     cursor.execute('''

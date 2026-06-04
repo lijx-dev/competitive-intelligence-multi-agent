@@ -33,7 +33,28 @@ class FactCheckAgent:
         research = state.get("research_results", [])
 
         result = self.verify(competitor, changes, research)
-        return {"fact_check_result": result.model_dump()}
+        result_dict = result.model_dump()
+
+        # ★ Bug2修复：补充前端渲染需要的关键字段
+        # 前端 agentMarkdown.js 读取 verified_count / unverified_count / overall_confidence
+        adj = result_dict.get("confidence_adjustments", {})
+        verified_count = adj.get("verified", 0)
+        unverified_count = adj.get("unverified", 0)
+        partial_count = adj.get("partially_verified", 0)
+        total_claims = adj.get("total_claims", 0)
+
+        result_dict["verified_count"] = verified_count
+        result_dict["unverified_count"] = unverified_count
+        result_dict["partial_count"] = partial_count
+        result_dict["overall_confidence"] = adj.get("verification_rate", 0.0)
+        result_dict["verification_summary"] = (
+            f"交叉验证完成：{total_claims} 条断言中，{verified_count} 条已验证通过、"
+            f"{partial_count} 条部分验证、{unverified_count} 条未验证。"
+            f"整体置信度 {(adj.get('verification_rate', 0) * 100):.0f}%。"
+        )
+        result_dict["status"] = "verified" if adj.get("verification_rate", 0) >= 0.5 else "needs_review"
+
+        return {"fact_check_result": result_dict}
 
     # ------------------------------------------------------------------
     # 核心校验

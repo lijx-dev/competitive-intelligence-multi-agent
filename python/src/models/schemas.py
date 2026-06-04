@@ -102,6 +102,7 @@ class Battlecard(BaseSchema):
     key_differentiators: list[str] = Field(default_factory=list)
     objection_handling: dict[str, str] = Field(default_factory=dict)
     elevator_pitch: str = ""
+    next_actions: list[dict] = Field(default_factory=list, description="面向销售/产品/技术团队的可执行落地建议，每条包含action/owner/expected_impact")  # ★ 新增：下一步动作
     generated_at: datetime = Field(default_factory=datetime.utcnow)
 
 

@@ -235,7 +235,12 @@ SCENARIO1_BATTLECARD = {
             "快手老铁经济复购率高，是不是更适合我们这种品类？": "社区黏性确实是快手的优势，但需要评估您的目标客群规模。如果您的品类在三四线城市有主力消费群，快手值得作为补充渠道。但抖音的一二线城市覆盖和中高消费力人群规模（约3亿）是快手无法替代的。建议「抖音做规模、快手做黏性」双平台策略。",
             "抖音流量越来越贵，小商家怎么活下去？": "这是个真实挑战，我们建议三个策略：1）从「买流量」转向「做内容」——优质短视频内容获取免费流量，我们的数据表明自然流量GMV占比可达30-50%；2）利用千川的智能定向，把每一分钱花在精准人群上；3）关注抖音的「中小商家扶持计划」，新商家有流量券和佣金减免。"
         },
-        "elevator_pitch": "抖音电商是品牌规模化的主阵地——7亿DAU、3.5万亿GMV、AI驱动的精准匹配，是品牌从0到100的最短路径。快手适合作为社区渗透的补充渠道。核心策略：抖音做规模+品牌，快手做黏性+下沉，双平台协同而非二选一。"
+        "elevator_pitch": "抖音电商是品牌规模化的主阵地——7亿DAU、3.5万亿GMV、AI驱动的精准匹配，是品牌从0到100的最短路径。快手适合作为社区渗透的补充渠道。核心策略：抖音做规模+品牌，快手做黏性+下沉，双平台协同而非二选一。",
+        "next_actions": [
+            {"action": "在千川后台创建「快手流失商户」定向人群包，针对性推送抖音电商入驻优惠券", "owner": "销售团队", "expected_impact": "预计月均召回200+摇摆商家"},
+            {"action": "加速抖店「AI客服」功能灰度上线，覆盖80%常见售后场景，降低商家人力成本40%", "owner": "产品团队", "expected_impact": "提升中小商家满意度至4.5/5"},
+            {"action": "基于豆包大模型API开放商家端智能选品工具，商家输入商品图即可生成AI推荐标题+关键词", "owner": "技术团队", "expected_impact": "商家上架效率提升3倍，SKU丰富度+30%"}
+        ]
     }
 }
 
@@ -248,7 +253,7 @@ SCENARIO1_REVIEW_FEEDBACK = {
         "actionability_score": 8.8,
         "approved": True,
         "issues": [],
-        "revision_instructions": "报告质量优秀，8维度对比数据翔实，引用来源可靠。建议在答辩时重点强调AI技术差距和生态闭环两个差异化优势。战术卡异议处理话术内容丰富，实战价值高。",
+        "revision_instructions": "报告质量优秀，8维度对比数据翔实，引用来源可靠。建议在答辩时重点强调AI技术差距和生态闭环两个差异化优势。战术卡异议处理话术内容丰富，实战价值高。next_actions覆盖销售/产品/技术三个部门，可执行性强。",
     }
 }
 
@@ -591,7 +596,12 @@ SCENARIO2_BATTLECARD = {
             "Temu价格更低，用户都跑Temu了怎么办？": "低价确实吸引眼球，但时尚消费从来不只是价格战。Zara比Shein贵但活得好好的——因为消费者买的是时尚、是品牌认同、是购物体验。我们的策略是守住时尚品类的品牌护城河，同时在基础款上保持竞争力。数据显示SHEIN用户年均消费$150+ vs Temu $80+，说明品牌价值在持续变现。",
             "Temu增速200%+，SHEIN才25%，是不是说明模式有问题？": "增速比较要看基数和发展阶段。Temu从0到500亿当然快，但这是用年亏300亿换来的——每获得$1收入要补贴$0.6。这种模式能持续多久要看资本市场脸色。SHEIN的25%增速是在盈利前提下的，这才是健康的增长。",
         },
-        "elevator_pitch": "SHEIN不是另一个电商平台，是全球最大的时尚品牌之一。我们的小单快反供应链能在7天内把Instagram热门趋势变成消费者衣橱里的衣服，这是亚马逊都做不到的速度。Temu做的是低价百货，我们做的是时尚品牌——两条赛道，不同的游戏规则。"
+        "elevator_pitch": "SHEIN不是另一个电商平台，是全球最大的时尚品牌之一。我们的小单快反供应链能在7天内把Instagram热门趋势变成消费者衣橱里的衣服，这是亚马逊都做不到的速度。Temu做的是低价百货，我们做的是时尚品牌——两条赛道，不同的游戏规则。",
+        "next_actions": [
+            {"action": "与海外仓服务商签约美东/欧洲新仓，将配送时效从7天压缩至3天", "owner": "运营团队", "expected_impact": "购物车放弃率降低15%"},
+            {"action": "向品牌商家开放「SHEIN小单快反」API接口，允许第三方接入供应链能力", "owner": "产品团队", "expected_impact": "平台SKU丰富度+50%"},
+            {"action": "基于豆包VL模型为卖家提供AI商品图生成，降低拍摄成本80%", "owner": "技术团队", "expected_impact": "新品上架速度提升3倍"}
+        ]
     }
 }
 
@@ -858,3 +868,153 @@ def list_scenarios() -> list[dict]:
         {"id": k, "name": v["name"], "competitor": v["competitor"]}
         for k, v in SCENARIO_MAP.items()
     ]
+
+
+# ======================================================================
+# SCENARIO FEISHU MOCK DATA — 飞书调度官演示数据（增量新增）
+# ======================================================================
+
+FEISHU_MOCK_TASKS: list[dict] = [
+    {
+        "task_id": "demo_abc12345",
+        "competitor": "快手电商",
+        "mode": "mock",
+        "progress_pct": 100,
+        "completed": 12,
+        "failed": 0,
+        "total": 12,
+        "is_complete": True,
+        "node_status": {
+            "monitor": "completed",
+            "alert": "completed",
+            "research": "completed",
+            "multimodal": "completed",
+            "fact_check": "completed",
+            "compare": "completed",
+            "schema_validation": "completed",
+            "battlecard": "completed",
+            "reviewer": "completed",
+            "targeted_fix": "completed",
+            "citation": "completed",
+            "ontology": "completed",
+            "feishu_push": "completed",
+        },
+    },
+    {
+        "task_id": "demo_def67890",
+        "competitor": "Temu",
+        "mode": "mock",
+        "progress_pct": 58,
+        "completed": 7,
+        "failed": 0,
+        "total": 12,
+        "is_complete": False,
+        "node_status": {
+            "monitor": "completed",
+            "alert": "completed",
+            "research": "completed",
+            "multimodal": "completed",
+            "fact_check": "completed",
+            "compare": "completed",
+            "schema_validation": "completed",
+            "battlecard": "running",
+            "reviewer": "pending",
+            "targeted_fix": "pending",
+            "citation": "pending",
+            "ontology": "pending",
+            "feishu_push": "pending",
+        },
+    },
+    {
+        "task_id": "demo_ghi11223",
+        "competitor": "SHEIN",
+        "mode": "real",
+        "progress_pct": 25,
+        "completed": 3,
+        "failed": 1,
+        "total": 12,
+        "is_complete": False,
+        "node_status": {
+            "monitor": "completed",
+            "alert": "completed",
+            "research": "completed",
+            "multimodal": "failed",
+            "fact_check": "running",
+            "compare": "pending",
+            "schema_validation": "pending",
+            "battlecard": "pending",
+            "reviewer": "pending",
+            "targeted_fix": "pending",
+            "citation": "pending",
+            "ontology": "pending",
+            "feishu_push": "pending",
+        },
+    },
+]
+
+FEISHU_MOCK_CARD_HISTORY: list[dict] = [
+    {
+        "task_id": "demo_abc12345",
+        "card_type": "confirmation",
+        "sent_at": "2026-06-03T10:00:01Z",
+        "competitor": "快手电商",
+        "mode": "mock",
+    },
+    {
+        "task_id": "demo_abc12345",
+        "card_type": "progress",
+        "sent_at": "2026-06-03T10:00:02Z",
+        "progress_pct": 8,
+        "completed_nodes": 1,
+    },
+    {
+        "task_id": "demo_abc12345",
+        "card_type": "progress",
+        "sent_at": "2026-06-03T10:00:03Z",
+        "progress_pct": 50,
+        "completed_nodes": 6,
+    },
+    {
+        "task_id": "demo_abc12345",
+        "card_type": "progress",
+        "sent_at": "2026-06-03T10:00:04Z",
+        "progress_pct": 92,
+        "completed_nodes": 11,
+    },
+    {
+        "task_id": "demo_abc12345",
+        "card_type": "completion",
+        "sent_at": "2026-06-03T10:00:05Z",
+        "quality_score": 8.7,
+        "doc_url": "https://bytedance.feishu.cn/docx/mock_doc_abc123",
+        "bitable_url": "https://bytedance.feishu.cn/base/mock_base_abc123",
+    },
+]
+
+FEISHU_MOCK_BITABLE_RESULT: dict = {
+    "ok": True,
+    "synced": {
+        "competitor": 1,
+        "comparison": 8,
+        "battlecard": 18,
+        "onto_nodes": 8,
+        "onto_edges": 7,
+        "analysis_log": 1,
+    },
+    "total_records": 43,
+}
+
+FEISHU_MOCK_DOC_RESULT: dict = {
+    "ok": True,
+    "doc_id": "mock_doc_abc123",
+    "doc_url": "https://bytedance.feishu.cn/docx/mock_doc_abc123",
+    "doc_title": "📊 快手电商 竞品分析报告 — 20260603-1000",
+}
+
+FEISHU_MOCK_COMMAND_PARSE_EXAMPLES: list[dict] = [
+    {"input": "/ci 快手电商", "competitor": "快手电商", "matched_pattern": "quick_command", "mode": "mock"},
+    {"input": "分析一下SHEIN", "competitor": "SHEIN", "matched_pattern": "natural_language", "mode": "mock"},
+    {"input": "帮我做Temu竞品分析", "competitor": "Temu", "matched_pattern": "natural_language", "mode": "mock"},
+    {"input": "对比抖音和快手", "competitor": "抖音电商", "matched_pattern": "natural_language", "mode": "mock"},
+    {"input": "研究一下小红书电商", "competitor": "小红书电商", "matched_pattern": "keyword_match", "mode": "mock"},
+]

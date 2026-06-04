@@ -15,21 +15,29 @@ from ..services.rag.rag_agent import RAGEnhancedAgent
 logger = logging.getLogger(__name__)
 
 SYSTEM_PROMPT = """\
-You are a Sales Battlecard Generator Agent.
-Given a comparison matrix and research insights, create a sales battlecard that
-a sales rep can use in competitive deals.
+你是一个销售战术卡生成智能体（Battlecard Agent）。
+你必须使用简体中文输出所有内容。
+根据对比矩阵和研究洞察，生成销售人员可在竞争交易中使用的销售战术卡。
 
-Return a JSON object with keys:
-  our_strengths: [str],
-  our_weaknesses: [str],
-  competitor_strengths: [str],
-  competitor_weaknesses: [str],
-  key_differentiators: [str],
-  objection_handling: {objection: response, ...},
-  elevator_pitch: str.
+返回包含以下字段的 JSON 对象：
+  our_strengths: [中文优势列表, 3-5项],
+  our_weaknesses: [中文劣势列表, 3-5项],
+  competitor_strengths: [竞品中文优势列表, 3-5项],
+  competitor_weaknesses: [竞品中文劣势列表, 3-5项],
+  key_differentiators: [中文关键差异化点列表, 3-5项],
+  objection_handling: {客户异议: 应对话术, ...},
+  elevator_pitch: 2-3句中文电梯演讲,
+  next_actions: [
+    {
+      "action": "具体可执行动作（中文，不超过50字）",
+      "owner": "责任部门（销售/产品/技术）",
+      "expected_impact": "预期效果（中文，不超过30字）"
+    },
+    ... 至少3条，分别面向销售、产品、技术团队
+  ]
 
-Keep language concise, persuasive, and actionable. Each list should have 3-5
-items. The elevator_pitch should be 2-3 sentences.
+语言简洁有说服力，具备可操作性。next_actions必须面向不同责任部门，明确预期效果。
+所有输出必须是简体中文。
 """
 
 
@@ -66,10 +74,10 @@ class BattlecardAgent:
             logger.debug("RAG 检索跳过: %s", e)
 
         user_msg = (
-            f"Competitor: {competitor}\n\n"
-            f"Comparison Matrix:\n{json.dumps(comparison.model_dump() if hasattr(comparison, 'model_dump') else comparison, ensure_ascii=False, indent=2)}\n\n"
-            f"Research Insights:\n{json.dumps([r.model_dump() if hasattr(r, 'model_dump') else r for r in research], ensure_ascii=False, indent=2)}\n\n"
-            "Generate a battlecard as JSON."
+            f"竞品名称: {competitor}\n\n"
+            f"对比矩阵:\n{json.dumps(comparison.model_dump() if hasattr(comparison, 'model_dump') else comparison, ensure_ascii=False, indent=2)}\n\n"
+            f"研究洞察:\n{json.dumps([r.model_dump() if hasattr(r, 'model_dump') else r for r in research], ensure_ascii=False, indent=2)}\n\n"
+            "请以JSON格式生成销售战术卡。所有输出必须是简体中文。"
         )
         user_msg = RAGEnhancedAgent.augment_prompt(user_msg, rag_docs, max_docs=2)
 
@@ -118,4 +126,5 @@ class BattlecardAgent:
             key_differentiators=data.get("key_differentiators", []),
             objection_handling=data.get("objection_handling", {}),
             elevator_pitch=data.get("elevator_pitch", ""),
+            next_actions=data.get("next_actions", []),  # ★ 新增：下一步动作
         )

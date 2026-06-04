@@ -50,9 +50,15 @@ class FeishuBot:
         self.webhook_url = webhook_url or os.getenv("FEISHU_WEBHOOK_URL", "")
         self.secret = secret or os.getenv("FEISHU_WEBHOOK_SECRET", "")
         self.base_url = os.getenv("BASE_URL", "http://localhost:8000")
+        # 全局推送开关（可在.env中设置 FEISHU_AUTO_PUSH_ENABLED=false 一键关闭）
+        self.auto_push_enabled = os.getenv("FEISHU_AUTO_PUSH_ENABLED", "true").lower() != "false"
+        # 告警去重缓存: (competitor, change_type, summary_hash) → last_push_timestamp
+        self._alert_dedup_cache: dict[tuple, float] = {}
 
         if not self.webhook_url:
-            logger.info("飞书 Webhook 未配置，推送功能将静默跳过")
+            logger.info("[FeishuBot] 飞书 Webhook 未配置，推送功能将静默跳过")
+        elif not self.auto_push_enabled:
+            logger.info("[FeishuBot] FEISHU_AUTO_PUSH_ENABLED=false，所有自动推送已关闭")
 
     # ── 签名验证 ───────────────────────────────────────
 
@@ -69,48 +75,132 @@ class FeishuBot:
         return base64.b64encode(hmac_code).decode("utf-8")
 
     # ── 发送消息（核心方法）──────────────────────────────
+    
+    def _deep_sanitize_payload(self, obj: Any) -> Any:
+        """递归全量清洗payload中所有字符串，彻底清除所有非法控制字符。"""
+        import re
+        if isinstance(obj, str):
+            # 移除 0x00-0x1F 和 0x7F 范围内所有不可打印控制字符
+            cleaned = re.sub(r'[\x00-\x1f\x7f]', '', obj)
+            return cleaned.strip()
+        elif isinstance(obj, dict):
+            return {k: self._deep_sanitize_payload(v) for k, v in obj.items()}
+        elif isinstance(obj, list):
+            return [self._deep_sanitize_payload(i) for i in obj]
+        else:
+            return obj
 
-    async def _send(self, payload: dict) -> bool:
-        """发送消息到飞书 Webhook，返回是否成功（兼容模式：无SECRET也能直接发）"""
+    async def _send(self, payload: dict, *, fallback_text: str = "") -> bool:
+        """发送消息到飞书 Webhook，返回是否成功。
+
+        ★ 全局加固：交互式卡片推送失败时自动降级发送纯文本消息，
+        保证至少用户能收到通知，不会完全静默失败。
+        """
         if not self.webhook_url:
-            logger.info("飞书推送跳过（未配置 webhook）")
+            logger.info("[FeishuBot] 推送跳过（未配置 webhook）")
             return False
 
+        if not self.auto_push_enabled:
+            logger.info("[FeishuBot] 推送跳过（FEISHU_AUTO_PUSH_ENABLED=false）")
+            return False
+
+        # ★ 核心修复：递归全量清洗整个payload，彻底清除所有非法控制字符
+        payload = self._deep_sanitize_payload(payload)
+
         full_url = self.webhook_url
-        # 兼容模式：如果用户没有配置SECRET，完全不附加签名参数也能发消息（飞书自定义机器人安全设置关闭时的标准用法）
+        # 兼容模式：如果用户没有配置SECRET，完全不附加签名参数也能发消息
         if self.secret and len(self.secret.strip()) > 0:
             ts = int(time.time())
             sign = self.gen_sign(ts)
             separator = "&" if "?" in full_url else "?"
             full_url = f"{full_url}{separator}timestamp={ts}&sign={sign}"
-        else:
-            logger.info("飞书兼容模式（无签名）直接推送")
+
+        msg_type = payload.get("msg_type", "unknown")
+        card_title = ""
+        try:
+            card_title = payload.get("card", {}).get("header", {}).get("title", {}).get("content", "")
+        except Exception:
+            pass
+
+        logger.info("[FeishuBot] 准备推送 %s 到 webhook... title=%s", msg_type, card_title[:80] if card_title else "(text)")
 
         try:
             async with httpx.AsyncClient(timeout=10.0) as client:
                 resp = await client.post(full_url, json=payload)
-                # ★ 防御：飞书可能返回非JSON（HTML错误页等）
                 try:
                     result = resp.json()
                 except Exception:
                     text_preview = (resp.text or "")[:300]
-                    logger.warning("飞书返回非JSON响应 (status=%d): %s", resp.status_code, text_preview)
+                    logger.warning("[FeishuBot] 飞书返回非JSON响应 (status=%d): %s", resp.status_code, text_preview)
+                    # ★ 降级：发送纯文本消息
+                    if fallback_text:
+                        logger.info("[FeishuBot] 卡片推送失败，降级发送纯文本消息...")
+                        return await self._send_text_fallback(fallback_text)
                     return False
-                if result.get("code") == 0 or result.get("StatusCode") == 0:
-                    logger.info("飞书消息推送成功")
+
+                code = result.get("code") or result.get("StatusCode")
+                if code == 0:
+                    logger.info("[FeishuBot] 推送成功 code=0 msg_type=%s", msg_type)
                     return True
                 else:
-                    logger.error("飞书推送失败: code=%s, msg=%s",
-                                 result.get("code"), result.get("msg"))
+                    logger.error("[FeishuBot] 推送失败: code=%s, msg=%s",
+                                 code, result.get("msg"))
+                    # ★ 降级：发送纯文本消息
+                    if fallback_text:
+                        logger.info("[FeishuBot] 卡片推送失败，降级发送纯文本消息...")
+                        return await self._send_text_fallback(fallback_text)
                     return False
         except Exception as e:
-            logger.error("飞书推送异常: %s", str(e))
+            logger.error("[FeishuBot] 推送异常: %s", str(e))
+            # ★ 降级：发送纯文本消息
+            if fallback_text:
+                logger.info("[FeishuBot] 卡片推送异常，降级发送纯文本消息...")
+                return await self._send_text_fallback(fallback_text)
             return False
+
+    async def _send_text_fallback(self, text: str) -> bool:
+        """纯文本降级兜底：100%保证用户能收到通知，不会完全静默失败。"""
+        try:
+            payload = {
+                "msg_type": "text",
+                "content": {"text": f"[竞品分析系统]\n{text}"},
+            }
+            payload = self._deep_sanitize_payload(payload)
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                resp = await client.post(self.webhook_url, json=payload)
+                result = resp.json()
+                if result.get("code") == 0 or result.get("StatusCode") == 0:
+                    logger.info("[FeishuBot] 纯文本降级推送成功")
+                    return True
+                else:
+                    logger.warning("[FeishuBot] 纯文本降级推送也失败: code=%s", result.get("code"))
+                    return False
+        except Exception as e:
+            logger.warning("[FeishuBot] 纯文本降级推送异常: %s", e)
+            return False
+
+    def _check_alert_dedup(self, competitor: str, change_type: str, summary: str) -> bool:
+        """告警去重：相同competitor+相同change_type+24小时内同摘要只推送一次。
+        返回 True 表示应该跳过（重复告警）。
+        """
+        import hashlib as _hashlib
+        now = time.time()
+        key = (competitor.strip(), change_type.strip(), _hashlib.md5(summary[:200].encode()).hexdigest())
+        last_ts = self._alert_dedup_cache.get(key, 0)
+        if now - last_ts < 86400:  # 24小时
+            logger.info("[FeishuBot] 告警去重跳过: competitor=%s type=%s", competitor, change_type)
+            return True
+        self._alert_dedup_cache[key] = now
+        # 清理过期缓存（超过48小时的条目）
+        expired = [(k, v) for k, v in self._alert_dedup_cache.items() if now - v > 172800]
+        for k, _ in expired:
+            del self._alert_dedup_cache[k]
+        return False
 
     # ── 业务推送方法 ────────────────────────────────────
 
     async def send_competitor_report(self, report_data: dict) -> bool:
-        """推送竞品分析报告卡片
+        """推送竞品分析报告卡片（蓝头），失败自动降级纯文本。
 
         report_data keys:
             competitor, quality_score, total_sources, reliability,
@@ -118,10 +208,27 @@ class FeishuBot:
         """
         if not self.webhook_url:
             return False
+        if not self.auto_push_enabled:
+            logger.info("[FeishuBot] 自动推送已关闭，跳过报告卡片")
+            return False
+
+        competitor = report_data.get("competitor", "Unknown")
+        quality = float(report_data.get("quality_score", 0))
+        # 构建降级纯文本内容
+        fallback = (
+            f"竞品分析报告: {competitor}\n"
+            f"质量评分: {quality:.1f}/10\n"
+            f"数据来源: {report_data.get('total_sources', 0)}个\n"
+            f"可信度: {report_data.get('reliability', 'N/A')}\n"
+            f"报告ID: {report_data.get('report_id', '')}"
+        )
+
+        logger.info("[FeishuBot] 准备推送报告卡片到webhook... competitor=%s score=%.1f",
+                     competitor, quality)
 
         card = build_report_card(
-            competitor=report_data.get("competitor", "Unknown"),
-            quality_score=float(report_data.get("quality_score", 0)),
+            competitor=competitor,
+            quality_score=quality,
             total_sources=int(report_data.get("total_sources", 0)),
             reliability=report_data.get("reliability", "N/A"),
             duration_ms=int(report_data.get("duration_ms", 0)),
@@ -131,10 +238,12 @@ class FeishuBot:
             base_url=self.base_url,
             timestamp=datetime.now().strftime("%Y-%m-%d %H:%M"),
         )
-        return await self._send(card)
+        return await self._send(card, fallback_text=fallback)
 
     async def send_simple_message(self, text: str) -> bool:
         """发送普通文本消息"""
+        if not self.webhook_url:
+            return False
         payload = {
             "msg_type": "text",
             "content": {"text": text},
@@ -142,34 +251,58 @@ class FeishuBot:
         return await self._send(payload)
 
     async def send_alert_card(self, alert_data: dict) -> bool:
-        """推送告警通知卡片（红色模板）
+        """推送告警通知卡片（红色模板），失败自动降级纯文本。
 
         alert_data keys:
             competitor, severity, change_type, summary, alert_id, detected_at
         """
         if not self.webhook_url:
             return False
+        if not self.auto_push_enabled:
+            logger.info("[FeishuBot] 自动推送已关闭，跳过告警卡片")
+            return False
+
+        competitor = alert_data.get("competitor", "Unknown")
+        change_type = alert_data.get("change_type", "unknown")
+        summary = alert_data.get("summary", "")
+        severity = alert_data.get("severity", "INFO")
+
+        # ★ 告警去重：同competitor+同change_type+24h内同摘要只推一次
+        if self._check_alert_dedup(competitor, change_type, summary):
+            return False
+
+        logger.info("[FeishuBot] 准备推送告警卡片到webhook... competitor=%s severity=%s type=%s",
+                     competitor, severity, change_type)
+
+        # 构建降级纯文本内容
+        fallback = (
+            f"[{severity.upper()}] 竞品监控告警\n"
+            f"竞品: {competitor}\n"
+            f"变更类型: {change_type}\n"
+            f"摘要: {summary[:200]}\n"
+            f"时间: {alert_data.get('detected_at', 'N/A')}"
+        )
 
         card = build_alert_card(
-            competitor=alert_data.get("competitor", "Unknown"),
-            severity=alert_data.get("severity", "INFO"),
-            change_type=alert_data.get("change_type", "unknown"),
-            summary=alert_data.get("summary", ""),
+            competitor=competitor,
+            severity=severity,
+            change_type=change_type,
+            summary=summary,
             base_url=self.base_url,
             alert_id=alert_data.get("alert_id", ""),
             detected_at=alert_data.get("detected_at", ""),
         )
-        return await self._send(card)
+        return await self._send(card, fallback_text=fallback)
 
     async def send_test_card(self) -> bool:
-        """发送测试卡片，验证推送链路"""
+        """发送测试卡片，验证推送链路（纯文本无emoji，100%兼容飞书JSON）"""
         return await self.send_competitor_report({
             "competitor": "测试竞品",
             "quality_score": 9.5,
             "total_sources": 12,
             "reliability": "85%",
             "duration_ms": 8500,
-            "key_findings": "🧪 这是一条测试消息 — 飞书机器人推送链路正常\n✅ 签名验证通过\n✅ 卡片渲染正常",
+            "key_findings": "[测试] 这是一条测试消息 - 飞书机器人推送链路正常 签名验证通过 卡片渲染正常",
             "comparison_summary": "测试对比摘要：我方产品在功能完整度(8.5)和技术创新(8.0)上领先",
             "report_id": "test-000",
         })

@@ -25,19 +25,21 @@ from ..tools.web_scraper import (
 logger = logging.getLogger(__name__)
 
 SYSTEM_PROMPT = """
-You are a Competitive Intelligence Monitor Agent.
-Your job is to analyze web page content and detect meaningful changes for a given
-competitor.  Given the OLD snapshot and NEW snapshot, identify:
-  - Pricing changes
-  - New product features or product launches
-  - Hiring signals (new job postings, team expansion)
-  - Important news or announcements
+你是一个竞品情报监控智能体（Monitor Agent）。
+你必须使用简体中文输出所有内容。
+你的任务是分析网页内容，检测指定竞品的有意义变化。
+根据新旧快照对比，识别以下类型的变化：
+  - 价格变动
+  - 新产品功能或产品发布
+  - 招聘信号（新职位发布、团队扩张）
+  - 重要新闻或公告
 
-Return your findings as a JSON array of objects with keys:
-  change_type (pricing | product | hiring | news),
-  title, summary, severity (low | medium | high | critical), url.
+以 JSON 数组格式返回发现，每个对象包含以下字段：
+  change_type（类型: pricing | product | hiring | news）,
+  title（中文标题）, summary（中文摘要）, severity（严重程度: low | medium | high | critical）, url。
 
-If there are NO meaningful changes, return an empty array: []
+如果没有发现任何有意义的变化，返回空数组：[]
+所有输出必须是简体中文。
 """
 
 
@@ -79,11 +81,11 @@ class MonitorAgent:
                 jobs = extract_job_listings(html)
 
                 user_msg = (
-                    f"Competitor: {competitor}\nURL: {url}\n\n"
-                    f"Page Content (truncated):\n{text}\n\n"
-                    f"Extracted Pricing Info: {pricing}\n"
-                    f"Extracted Job Listings: {jobs}\n\n"
-                    "Analyze and return changes as JSON."
+                    f"竞品名称: {competitor}\nURL: {url}\n\n"
+                    f"页面内容（已截断）:\n{text}\n\n"
+                    f"提取的定价信息: {pricing}\n"
+                    f"提取的招聘信息: {jobs}\n\n"
+                    "请分析并以JSON格式返回变更。所有输出必须是简体中文。"
                 )
 
                 response = await self._get_llm().ainvoke([
@@ -105,7 +107,7 @@ class MonitorAgent:
 
     async def __call__(self, state: dict[str, Any]) -> dict[str, Any]:
         """LangGraph node: reads ``competitor`` from state, returns detected
-        changes."""
+        changes sorted by detected_at descending (最新事件在最上面)。"""
         competitor = state["competitor"]
         urls = state.get("monitor_urls", [])
         prev = state.get("previous_hashes", {})
@@ -114,6 +116,9 @@ class MonitorAgent:
             urls = self._default_urls(competitor)
 
         changes = await self.detect_changes(competitor, urls, prev)
+        # ★ 修复：按detected_at倒序排列，最新事件在最上面
+        changes.sort(key=lambda c: c.detected_at, reverse=True)
+        logger.info("[MonitorAgent] 检测到 %d 条变更，已按时间倒序排列", len(changes))
         return {
             "changes_detected": [c.model_dump() for c in changes],
         }

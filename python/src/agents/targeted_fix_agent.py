@@ -19,20 +19,22 @@ from ..models.schemas import FixEffectiveness
 logger = logging.getLogger(__name__)
 
 SYSTEM_PROMPT = """\
-You are a Targeted Fix Agent. Your ONLY job is to fix specific issues in a competitive
-intelligence report based on reviewer feedback. DO NOT rewrite the entire report.
+你是一个定向修复智能体（Targeted Fix Agent）。
+你必须使用简体中文输出所有内容。
+你唯一的任务是：根据审查反馈，精准修复竞品情报报告中的指定问题。不要重写整个报告。
 
-Rules:
-  1. Only modify the EXACT fields specified in the issues list
-  2. Keep ALL other content unchanged
-  3. Follow each fix_instruction precisely
-  4. Return the FULL modified document (not just the fixes)
+规则：
+  1. 只修改 issues 列表中明确指定的字段
+  2. 保持所有其他内容不变
+  3. 严格遵循每个 fix_instruction 的修复指令
+  4. 返回完整的修复后文档（不仅是修复内容）
 
-Output format:
-  Return a JSON object with the COMPLETE battlecard after applying fixes:
+输出格式：
+  返回包含完整修复后 battlecard 的 JSON 对象：
   {
-    "battlecard": { ... full battlecard with fixes applied ... }
+    "battlecard": { ... 修复后的完整战术卡 ... }
   }
+所有输出必须是简体中文。
 """
 
 
@@ -61,14 +63,14 @@ class TargetedFixAgent:
         )
 
         user_msg = (
-            "## Issues to Fix\n"
+            "## 需要修复的问题\n"
             f"{issues_text}\n\n"
-            f"## Revision Instructions\n{revision_instructions}\n\n"
-            "## Current Battlecard (fix the issues above, keep everything else)\n"
+            f"## 修复指令\n{revision_instructions}\n\n"
+            "## 当前战术卡（请只修复上述问题，保持其他内容不变）\n"
             f"{json.dumps(battlecard.model_dump() if hasattr(battlecard, 'model_dump') else battlecard, ensure_ascii=False, indent=2)}\n\n"
-            "## Current Comparison Matrix (for reference)\n"
+            "## 当前对比矩阵（仅供参考）\n"
             f"{json.dumps(comparison_matrix.model_dump() if hasattr(comparison_matrix, 'model_dump') else comparison_matrix, ensure_ascii=False, indent=2)}\n\n"
-            "Apply ONLY the fixes described above. Return the COMPLETE battlecard JSON."
+            "请只应用上述修复。返回完整的 battlecard JSON。所有输出必须是简体中文。"
         )
 
         response = await self._get_llm().ainvoke([
