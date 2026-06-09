@@ -49,11 +49,30 @@ class FeishuBot:
         import os
         self.webhook_url = webhook_url or os.getenv("FEISHU_WEBHOOK_URL", "")
         self.secret = secret or os.getenv("FEISHU_WEBHOOK_SECRET", "")
-        self.base_url = os.getenv("BASE_URL", "http://localhost:8000")
+        # ★ 自动检测ngrok公网URL（用于卡片按钮跳转）
+        self.base_url = os.getenv("BASE_URL", "")
+        if not self.base_url:
+            self.base_url = self._detect_ngrok_url() or "http://localhost:8000"
         # 全局推送开关（可在.env中设置 FEISHU_AUTO_PUSH_ENABLED=false 一键关闭）
         self.auto_push_enabled = os.getenv("FEISHU_AUTO_PUSH_ENABLED", "true").lower() != "false"
         # 告警去重缓存: (competitor, change_type, summary_hash) → last_push_timestamp
         self._alert_dedup_cache: dict[tuple, float] = {}
+
+    @staticmethod
+    def _detect_ngrok_url() -> str | None:
+        """自动从本地ngrok API获取公网URL"""
+        try:
+            import urllib.request, json
+            resp = urllib.request.urlopen("http://localhost:4040/api/tunnels", timeout=2)
+            data = json.loads(resp.read())
+            for t in data.get("tunnels", []):
+                url = t.get("public_url", "")
+                if url.startswith("https://"):
+                    logger.info("[FeishuBot] 自动检测到ngrok URL: %s", url)
+                    return url
+        except Exception:
+            pass
+        return None
 
         if not self.webhook_url:
             logger.info("[FeishuBot] 飞书 Webhook 未配置，推送功能将静默跳过")
@@ -122,44 +141,56 @@ class FeishuBot:
         except Exception:
             pass
 
+        # ★ 全局限流：确保两次推送间隔至少1.5秒，避免9499
+        now_ts = time.time()
+        if hasattr(self, '_last_send_ts') and (now_ts - self._last_send_ts) < 1.5:
+            wait = 1.5 - (now_ts - self._last_send_ts)
+            logger.info("[FeishuBot] 限流等待 %.1fs...", wait)
+            import asyncio as _asyncio_sleep
+            await _asyncio_sleep.sleep(wait)
+        self._last_send_ts = time.time()
+
         logger.info("[FeishuBot] 准备推送 %s 到 webhook... title=%s", msg_type, card_title[:80] if card_title else "(text)")
 
-        try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
-                resp = await client.post(full_url, json=payload)
-                try:
-                    result = resp.json()
-                except Exception:
-                    text_preview = (resp.text or "")[:300]
-                    logger.warning("[FeishuBot] 飞书返回非JSON响应 (status=%d): %s", resp.status_code, text_preview)
-                    # ★ 降级：发送纯文本消息
-                    if fallback_text:
-                        logger.info("[FeishuBot] 卡片推送失败，降级发送纯文本消息...")
-                        return await self._send_text_fallback(fallback_text)
-                    return False
+        # 内部推送函数（带9499重试）
+        async def _do_send(pld: dict, attempt: int = 1) -> tuple[bool, int, str]:
+            try:
+                async with httpx.AsyncClient(timeout=10.0) as client:
+                    resp = await client.post(full_url, json=pld)
+                    try:
+                        result = resp.json()
+                    except Exception:
+                        return False, resp.status_code, (resp.text or "")[:200]
+                    code = result.get("code") or result.get("StatusCode") or 0
+                    msg = result.get("msg", "")
+                    return code == 0, code, msg
+            except Exception as e:
+                return False, -1, str(e)[:200]
 
-                code = result.get("code") or result.get("StatusCode")
-                if code == 0:
-                    logger.info("[FeishuBot] 推送成功 code=0 msg_type=%s", msg_type)
-                    return True
-                else:
-                    logger.error("[FeishuBot] 推送失败: code=%s, msg=%s",
-                                 code, result.get("msg"))
-                    # ★ 降级：发送纯文本消息
-                    if fallback_text:
-                        logger.info("[FeishuBot] 卡片推送失败，降级发送纯文本消息...")
-                        return await self._send_text_fallback(fallback_text)
-                    return False
-        except Exception as e:
-            logger.error("[FeishuBot] 推送异常: %s", str(e))
-            # ★ 降级：发送纯文本消息
-            if fallback_text:
-                logger.info("[FeishuBot] 卡片推送异常，降级发送纯文本消息...")
-                return await self._send_text_fallback(fallback_text)
-            return False
+        success, code, msg = await _do_send(payload)
+        if success:
+            logger.info("[FeishuBot] 推送成功 code=0 msg_type=%s", msg_type)
+            return True
+
+        # ★ 9499限流 → 等待30秒让限流窗口完全重置
+        if code == 9499:
+            logger.warning("[FeishuBot] 触发9499限流，等待30秒让限流窗口重置...")
+            import asyncio as _asyncio_retry
+            await _asyncio_retry.sleep(30.0)
+            success2, code2, msg2 = await _do_send(payload)
+            if success2:
+                logger.warning("[FeishuBot] ★ 9499等待30秒后重试成功！")
+                return True
+            logger.warning("[FeishuBot] ★ 9499等待30秒后重试仍失败: code=%s msg=%s", code2, msg2)
+
+        # ★ 降级：发送纯文本消息
+        if fallback_text and code != 0:
+            logger.info("[FeishuBot] 卡片推送失败(code=%s)，降级发送纯文本...", code)
+            return await self._send_text_fallback(fallback_text)
+        return False
 
     async def _send_text_fallback(self, text: str) -> bool:
-        """纯文本降级兜底：100%保证用户能收到通知，不会完全静默失败。"""
+        """纯文本降级兜底：9499限流时自动等待重试。"""
         try:
             payload = {
                 "msg_type": "text",
@@ -169,12 +200,22 @@ class FeishuBot:
             async with httpx.AsyncClient(timeout=10.0) as client:
                 resp = await client.post(self.webhook_url, json=payload)
                 result = resp.json()
-                if result.get("code") == 0 or result.get("StatusCode") == 0:
+                code = result.get("code") or result.get("StatusCode") or 0
+                if code == 0:
                     logger.info("[FeishuBot] 纯文本降级推送成功")
                     return True
-                else:
-                    logger.warning("[FeishuBot] 纯文本降级推送也失败: code=%s", result.get("code"))
-                    return False
+                elif code == 9499:
+                    # 等待30秒限流窗口重置后重试
+                    import asyncio as _retry_asyncio
+                    await _retry_asyncio.sleep(30.0)
+                    async with httpx.AsyncClient(timeout=10.0) as client2:
+                        resp2 = await client2.post(self.webhook_url, json=payload)
+                        r2 = resp2.json()
+                        if (r2.get("code") or r2.get("StatusCode") or 0) == 0:
+                            logger.info("[FeishuBot] 纯文本9499重试成功")
+                            return True
+                logger.warning("[FeishuBot] 纯文本降级推送也失败: code=%s", code)
+                return False
         except Exception as e:
             logger.warning("[FeishuBot] 纯文本降级推送异常: %s", e)
             return False

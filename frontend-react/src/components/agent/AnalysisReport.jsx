@@ -6,6 +6,7 @@ import {
   ClipboardList,
   Lightbulb,
   Link2,
+  Network,
   Target,
   Zap,
 } from 'lucide-react';
@@ -42,6 +43,11 @@ function pickResults(results) {
   const battlecard = results.battlecard?.battlecard || results.battlecard || {};
   const reviewer = results.reviewer?.review_feedback || results.reviewer || {};
   const citation = results.citation?.citation_report || results.citation || {};
+  // ★ 提取Ontology图谱数据（支持多种嵌套格式）
+  const ontology = results.ontology_graph
+    || results.ontology?.ontology_graph
+    || results.ontology
+    || {};
 
   return {
     evidence: results.source_evidence || results.evidence || [],
@@ -52,6 +58,7 @@ function pickResults(results) {
     battlecard,
     reviewer,
     citation,
+    ontology,
   };
 }
 
@@ -485,6 +492,54 @@ function RecommendationList({ battlecard, reviewer }) {
   );
 }
 
+/* ── Ontology 知识图谱可视化 ── */
+const LAYER_COLORS = { L1: '#2563eb', L2: '#16a34a', L3: '#9333ea', L4: '#ea580c', L5: '#6b7280' };
+
+function OntologyGraph({ ontology }) {
+  const nodes = ontology.nodes || [];
+  const edges = ontology.relations || [];
+  if (!nodes.length) return <p className="empty-text">暂无图谱数据。</p>;
+
+  // 按层级分组
+  const layers = {};
+  nodes.forEach((n) => {
+    const l = n.layer || 'L1';
+    if (!layers[l]) layers[l] = [];
+    layers[l].push(n);
+  });
+
+  return (
+    <div className="ontology-graph">
+      <div className="ontology-stats">
+        <span>{nodes.length} 节点</span><span>{edges.length} 关系</span>
+        {ontology.stats && <span>{ontology.stats.layers || Object.keys(layers).length} 层</span>}
+      </div>
+      <div className="ontology-layers">
+        {Object.entries(layers).sort().map(([layer, layerNodes]) => (
+          <div key={layer} className="ontology-layer">
+            <div className="ontology-layer-label" style={{ borderColor: LAYER_COLORS[layer] || '#999' }}>
+              L{layer}
+            </div>
+            <div className="ontology-layer-nodes">
+              {layerNodes.map((n) => (
+                <div key={n.id} className="ontology-node" style={{ borderColor: n.color || LAYER_COLORS[layer] || '#999', fontSize: n.size ? Math.max(10, Math.min(16, n.size - 8)) : 12 }}>
+                  <span className="ontology-node-type">{n.entity_type || 'Entity'}</span>
+                  <strong>{n.label || n.id}</strong>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+      {edges.length > 0 && (
+        <div className="ontology-edges">
+          <span>关系: {edges.map((e) => e.relation_type).filter((v, i, a) => a.indexOf(v) === i).join(' | ')}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function AnalysisReport({ competitor, urls = [], results = {}, qualityScore, telemetry, events = [], historyRecords = [] }) {
   const data = pickResults(results);
   const dims = dimensionsOf(data.compare);
@@ -566,6 +621,13 @@ export function AnalysisReport({ competitor, urls = [], results = {}, qualitySco
         <div className="report-section report-section--wide">
           <RecommendationList battlecard={data.battlecard} reviewer={data.reviewer} />
         </div>
+
+        {data.ontology?.nodes?.length > 0 && (
+          <div className="report-section report-section--wide">
+            <h4><Network size={16} />Ontology 知识图谱</h4>
+            <OntologyGraph ontology={data.ontology} />
+          </div>
+        )}
       </div>
     </section>
   );

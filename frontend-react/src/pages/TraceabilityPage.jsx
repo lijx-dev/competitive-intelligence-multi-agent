@@ -1345,11 +1345,48 @@ export function TraceabilityPage() {
           onClose={() => setSelectedRecord(null)}
         />
       ) : (
-        <TraceRecordListPanel
-          records={state.records}
-          moduleLabel={TRACE_MODULE_LABELS[activeTab] || '可观测溯源'}
-          onSelect={setSelectedRecord}
-        />
+        /* ★ 每个tab展示不同的实时数据，不再都是相同记录列表 */
+        <>
+          {activeTab === 'overview' && (
+            <div className="trace-live-grid">
+              <OpsLoopPanel records={state.records} />
+              <div className="split-grid">
+                <TokenUsagePanel usage={tokenUsage} quota={state.quota} />
+                <DagPanel dag={dagForPanel} snapshots={state.snapshots} title="当前系统DAG状态" />
+              </div>
+            </div>
+          )}
+          {activeTab === 'logs' && (
+            <div className="trace-live-grid">
+              <LogsPanel logs={state.logs} />
+              <RecordShortcutPanel records={state.records} onSelect={setSelectedRecord} />
+            </div>
+          )}
+          {activeTab === 'tokens' && (
+            <div className="trace-live-grid">
+              <TokenUsagePanel usage={tokenUsage} quota={state.quota} />
+              <RecordShortcutPanel records={state.records} onSelect={setSelectedRecord} />
+            </div>
+          )}
+          {activeTab === 'events' && (
+            <div className="trace-live-grid">
+              <EventBusPanel events={state.events} />
+              <RecordShortcutPanel records={state.records} onSelect={setSelectedRecord} />
+            </div>
+          )}
+          {activeTab === 'dag' && (
+            <div className="trace-live-grid">
+              <DagPanel dag={dagForPanel} snapshots={state.snapshots} title="当前系统DAG状态" />
+              <RecordShortcutPanel records={state.records} onSelect={setSelectedRecord} />
+            </div>
+          )}
+          {activeTab === 'audit' && (
+            <div className="trace-live-grid">
+              <AuditPanel audits={state.audits} anomalies={anomalies} />
+              <RecordShortcutPanel records={state.records} onSelect={setSelectedRecord} />
+            </div>
+          )}
+        </>
       )}
     </div>
   );

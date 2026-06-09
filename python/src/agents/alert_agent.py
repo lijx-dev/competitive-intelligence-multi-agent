@@ -41,33 +41,37 @@ class AlertAgent:
                 f"Detected: {change.detected_at.isoformat()}"
             )
 
-            # ★ 核心修复：立即推送飞书告警卡片
+            # ★ 智能推送：Pipeline内静默（报告卡片已汇总），独立监控时推送
             channels = []
-            try:
-                from ..services.feishu import FeishuBot
-                from ..config import get_effective_notification_config
-                cfg = get_effective_notification_config()
-                if cfg.feishu_webhook_url:
-                    bot = FeishuBot(
-                        webhook_url=cfg.feishu_webhook_url,
-                        secret=cfg.feishu_webhook_secret,
-                    )
-                    import asyncio as _asyncio
-                    # 创建后台任务，不阻塞alert节点
-                    _asyncio.create_task(
-                        bot.send_alert_card({
-                            "competitor": change.competitor,
-                            "severity": change.severity.value.upper(),
-                            "change_type": change.change_type.value if hasattr(change.change_type, 'value') else str(change.change_type),
-                            "summary": change.summary,
-                            "alert_id": f"alert_{change.competitor}_{change.severity.value}_{datetime.utcnow().strftime('%Y%m%d%H%M%S')}",
-                            "detected_at": change.detected_at.isoformat() if isinstance(change.detected_at, datetime) else str(change.detected_at),
-                        })
-                    )
-                    channels.append("feishu")
-                    logger.info("[AlertAgent] 飞书告警卡片已发送: %s (%s)", change.title, change.severity.value)
-            except Exception as e:
-                logger.warning("[AlertAgent] 飞书告警推送失败（优雅降级）: %s", e)
+            import os as _alert_os
+            skip_feishu = _alert_os.getenv("FEISHU_SKIP_ALERT_PUSH", "false").lower() == "true"
+            if not skip_feishu:
+                try:
+                    from ..services.feishu import FeishuBot
+                    from ..config import get_effective_notification_config
+                    cfg = get_effective_notification_config()
+                    if cfg.feishu_webhook_url:
+                        bot = FeishuBot(
+                            webhook_url=cfg.feishu_webhook_url,
+                            secret=cfg.feishu_webhook_secret,
+                        )
+                        import asyncio as _asyncio
+                        _asyncio.create_task(
+                            bot.send_alert_card({
+                                "competitor": change.competitor,
+                                "severity": change.severity.value.upper(),
+                                "change_type": change.change_type.value if hasattr(change.change_type, 'value') else str(change.change_type),
+                                "summary": change.summary,
+                                "alert_id": f"alert_{change.competitor}_{change.severity.value}_{datetime.utcnow().strftime('%Y%m%d%H%M%S')}",
+                                "detected_at": change.detected_at.isoformat() if isinstance(change.detected_at, datetime) else str(change.detected_at),
+                            })
+                        )
+                        channels.append("feishu")
+                        logger.info("[AlertAgent] 飞书告警卡片已发送: %s", change.title[:50])
+                except Exception as e:
+                    logger.warning("[AlertAgent] 飞书告警推送失败: %s", e)
+            else:
+                logger.info("[AlertAgent] Pipeline模式，告警合入报告卡片: %s", change.title[:50])
 
             # 同时走原有broadcast渠道（slack/dingtalk等）
             try:

@@ -62,22 +62,28 @@ REPORT_CARD_TEMPLATE = {
                 "actions": [
                     {
                         "tag": "button",
-                        "text": {"tag": "plain_text", "content": "查看完整报告"},
+                        "text": {"tag": "plain_text", "content": "📄 查看完整报告"},
                         "type": "primary",
-                        "url": "{base_url}/api/v1/feishu/feedback?action=view&report_id={report_id}",
+                        "url": "{base_url}/api/v1/feishu/report-viewer?report_id={report_id}",
                     },
                     {
                         "tag": "button",
-                        "text": {"tag": "plain_text", "content": "分析准确"},
+                        "text": {"tag": "plain_text", "content": "✅ 分析准确"},
                         "type": "default",
-                        "value": json.dumps({"action": "confirm", "report_id": "{report_id}"}),
+                        "url": "{base_url}/api/v1/feishu/feedback-page?action=confirm&report_id={report_id}",
                     },
                     {
                         "tag": "button",
-                        "text": {"tag": "plain_text", "content": "需要修正"},
+                        "text": {"tag": "plain_text", "content": "❌ 需要修正"},
                         "type": "danger",
-                        "value": json.dumps({"action": "correct", "report_id": "{report_id}"}),
+                        "url": "{base_url}/api/v1/feishu/feedback-page?action=correct&report_id={report_id}",
                     },
+                ],
+            },
+            {
+                "tag": "note",
+                "elements": [
+                    {"tag": "plain_text", "content": "点击按钮即可反馈，系统会自动优化分析质量"}
                 ],
             },
         ],

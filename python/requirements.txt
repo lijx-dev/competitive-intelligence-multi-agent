@@ -31,3 +31,9 @@ openai-whisper>=20240930
 scikit-image>=0.22.0
 bilibili-api-python>=10.0.0
 dashscope>=1.20.0  # 通义VL仅作为fallback按需加载，不强制启动
+
+# ── 飞书CLI全局总调度官（可选）──────────────────────────────
+# lark-cli 用于飞书云文档生成 + 多维表格同步
+# 安装方式：pip install lark-cli && lark-cli auth login
+# 未安装时相关功能自动优雅降级，不影响核心分析功能
+# lark-cli>=1.0.0  # 取消注释以启用飞书云文档+多维表格功能

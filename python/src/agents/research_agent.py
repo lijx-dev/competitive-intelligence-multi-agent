@@ -142,13 +142,39 @@ class ResearchAgent:
 
         insights = []
         for item in items if isinstance(items, list) else [items]:
-            insights.append(
-                ResearchInsight(
-                    topic=item.get("topic", "General"),
-                    summary=item.get("summary", ""),
-                    key_findings=item.get("key_findings", []),
-                    sources=item.get("sources", []),
-                    confidence=item.get("confidence", 0.7),
+            # ★ 修复：LLM有时返回dict而非string，自动转换
+            raw_findings = item.get("key_findings", [])
+            clean_findings = []
+            for f in (raw_findings if isinstance(raw_findings, list) else []):
+                if isinstance(f, dict):
+                    # 将dict展平为 "key1: val1, key2: val2" 格式的字符串
+                    clean_findings.append(", ".join(f"{k}: {v}" for k, v in f.items()))
+                elif isinstance(f, str):
+                    clean_findings.append(f)
+                else:
+                    clean_findings.append(str(f))
+
+            # ★ 修复：sources也可能是dict
+            raw_sources = item.get("sources", [])
+            clean_sources = []
+            for s in (raw_sources if isinstance(raw_sources, list) else []):
+                if isinstance(s, dict):
+                    clean_sources.append(s.get("url", s.get("name", str(s))))
+                elif isinstance(s, str):
+                    clean_sources.append(s)
+                else:
+                    clean_sources.append(str(s))
+
+            try:
+                insights.append(
+                    ResearchInsight(
+                        topic=str(item.get("topic", "General"))[:100],
+                        summary=str(item.get("summary", ""))[:2000],
+                        key_findings=clean_findings,
+                        sources=clean_sources,
+                        confidence=float(item.get("confidence", 0.7)),
+                    )
                 )
-            )
+            except Exception as e:
+                logger.warning("ResearchInsight构建失败（跳过单条）: %s", e)
         return insights

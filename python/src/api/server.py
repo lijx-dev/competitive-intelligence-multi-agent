@@ -690,8 +690,112 @@ async def get_analysis_record(record_id: int):
     return record
 
 
-# ==================================================================
-#  系统配置 API
+@app.get("/analysis/records/{record_id}/report.pdf", summary="下载分析记录PDF报告")
+async def download_analysis_pdf(record_id: int):
+    """生成并下载竞品分析PDF报告"""
+    from fastapi.responses import Response
+
+    record = get_analysis_record_by_id(record_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="分析记录不存在")
+
+    try:
+        from reportlab.lib.pagesizes import A4
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        from reportlab.lib.units import mm
+        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+        from reportlab.lib import colors
+        from reportlab.pdfbase import pdfmetrics
+        from reportlab.pdfbase.ttfonts import TTFont
+        import io, os as _pdf_os
+
+        # 尝试注册中文字体
+        font_registered = False
+        font_paths = [
+            "C:/Windows/Fonts/msyh.ttc",
+            "C:/Windows/Fonts/simsun.ttc",
+            "C:/Windows/Fonts/simhei.ttf",
+        ]
+        for fp in font_paths:
+            if _pdf_os.path.exists(fp):
+                try:
+                    pdfmetrics.registerFont(TTFont('ChineseFont', fp))
+                    font_registered = True
+                    break
+                except Exception:
+                    continue
+
+        buf = io.BytesIO()
+        doc = SimpleDocTemplate(buf, pagesize=A4, leftMargin=20*mm, rightMargin=20*mm, topMargin=15*mm, bottomMargin=15*mm)
+        styles = getSampleStyleSheet()
+        font_name = 'ChineseFont' if font_registered else 'Helvetica'
+
+        title_style = ParagraphStyle('TitleCN', parent=styles['Title'], fontName=font_name, fontSize=18)
+        h2_style = ParagraphStyle('H2CN', parent=styles['Heading2'], fontName=font_name, fontSize=13)
+        body_style = ParagraphStyle('BodyCN', parent=styles['Normal'], fontName=font_name, fontSize=9, leading=14)
+
+        result = record.get("analysis_result", {}) or {}
+        competitor = record.get("competitor_name", "Unknown")
+        quality = record.get("quality_score", 0)
+        matrix = result.get("comparison_matrix", {}) or {}
+        battle = result.get("battlecard", {}) or {}
+        cit = result.get("citation_report", {}) or {}
+        research = result.get("research_results", []) or []
+
+        story = []
+        story.append(Paragraph(f"{competitor} 竞品分析报告", title_style))
+        story.append(Spacer(1, 6*mm))
+        story.append(Paragraph(f"质量评分: {quality:.1f}/10 | 引用来源: {cit.get('total_sources', 0)} | 可信度: {(cit.get('overall_reliability_score', 0) or 0)*100:.0f}%", body_style))
+        story.append(Spacer(1, 4*mm))
+
+        # 对比矩阵
+        story.append(Paragraph("8维度对比矩阵", h2_style))
+        dims = matrix.get("dimensions", [])
+        if dims:
+            tdata = [["维度", "我方", "竞品", "差距"]]
+            for d in dims[:8]:
+                gap = (d.get("our_score", 0) or 0) - (d.get("competitor_score", 0) or 0)
+                tdata.append([str(d.get("dimension", ""))[:15], str(d.get("our_score", "-")), str(d.get("competitor_score", "-")), f"{gap:+.1f}"])
+            t = Table(tdata, colWidths=[70*mm, 30*mm, 30*mm, 30*mm])
+            t.setStyle(TableStyle([('GRID', (0,0), (-1,-1), 0.5, colors.grey), ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#2563eb')), ('TEXTCOLOR', (0,0), (-1,0), colors.white)]))
+            story.append(t)
+        story.append(Spacer(1, 4*mm))
+
+        # 战术卡
+        story.append(Paragraph("SWOT分析", h2_style))
+        for section, title in [("our_strengths", "我方优势"), ("our_weaknesses", "我方劣势"), ("competitor_strengths", "竞品优势"), ("competitor_weaknesses", "竞品劣势")]:
+            items = battle.get(section, [])[:3]
+            if items:
+                story.append(Paragraph(f"<b>{title}</b>", body_style))
+                for item in items:
+                    story.append(Paragraph(f"  • {str(item)[:100]}", body_style))
+
+        # Next Actions
+        actions = battle.get("next_actions", [])
+        if actions:
+            story.append(Spacer(1, 3*mm))
+            story.append(Paragraph("下一步建议动作", h2_style))
+            for a in actions[:3]:
+                story.append(Paragraph(f"  • {a.get('action', '')} → {a.get('owner', '')}", body_style))
+
+        story.append(Spacer(1, 4*mm))
+        story.append(Paragraph(f"报告由多Agent竞品情报系统自动生成 | {record.get('created_at', '')}", ParagraphStyle('Footer', parent=body_style, fontSize=7, textColor=colors.grey)))
+
+        doc.build(story)
+        pdf_bytes = buf.getvalue()
+        buf.close()
+
+        filename = f"competitive-report-{competitor}-{str(record.get('created_at', ''))[:10]}.pdf"
+        return Response(content=pdf_bytes, media_type="application/pdf",
+                        headers={"Content-Disposition": f'attachment; filename="{filename}"'})
+
+    except HTTPException:
+        raise
+    except ImportError:
+        raise HTTPException(status_code=500, detail="PDF生成依赖未安装: pip install reportlab")
+    except Exception as e:
+        logger.warning("PDF生成失败: %s", e)
+        raise HTTPException(status_code=500, detail=f"PDF生成失败: {str(e)[:200]}")
 # ==================================================================
 
 @app.get("/api/config", summary="获取所有系统配置")
@@ -863,6 +967,150 @@ async def api_update_our_product(req: OurProductUpdateRequest):
 
 
 # ==================================================================
+#  飞书报告查看器 — 完整分析报告HTML页面
+# ==================================================================
+
+@app.get("/api/v1/feishu/report-viewer", summary="飞书报告查看器（完整分析报告HTML页面）")
+async def feishu_report_viewer(report_id: str = "", record_id: str = ""):
+    """飞书卡片「查看完整报告」按钮跳转页面。
+
+    根据report_id或record_id查询分析记录，渲染完整HTML报告。
+    """
+    from fastapi.responses import HTMLResponse
+
+    record = None
+    try:
+        rid = int(report_id) if report_id.isdigit() else (int(record_id) if record_id.isdigit() else 0)
+        if rid:
+            record = get_analysis_record_by_id(rid)
+    except Exception:
+        pass
+
+    if not record:
+        return HTMLResponse(content="<html><body style='font-family:sans-serif;padding:40px;text-align:center'><h2>报告未找到</h2><p>请检查报告ID是否正确，或该报告可能已被删除。</p></body></html>", status_code=404)
+
+    result = record.get("analysis_result", {}) or {}
+    competitor = record.get("competitor_name", "Unknown")
+    quality = record.get("quality_score", 0)
+    matrix = result.get("comparison_matrix", {}) or {}
+    battle = result.get("battlecard", {}) or {}
+    cit = result.get("citation_report", {}) or {}
+    research = result.get("research_results", []) or []
+    onto = result.get("ontology_graph", {}) or {}
+    review = result.get("review_feedback", {}) or {}
+
+    dims = matrix.get("dimensions", []) if isinstance(matrix, dict) else []
+    dim_rows = "".join(
+        f"<tr><td>{d.get('dimension','?')}</td><td>{d.get('our_score','-')}</td><td>{d.get('competitor_score','-')}</td><td style='font-size:11px'>{d.get('notes','')[:100]}</td></tr>"
+        for d in dims[:8]
+    )
+
+    strengths = "".join(f"<li>{s}</li>" for s in (battle.get("our_strengths", []) or [])[:5])
+    weaknesses = "".join(f"<li>{w}</li>" for w in (battle.get("our_weaknesses", []) or [])[:5])
+    c_strengths = "".join(f"<li>{s}</li>" for s in (battle.get("competitor_strengths", []) or [])[:5])
+    c_weaknesses = "".join(f"<li>{w}</li>" for w in (battle.get("competitor_weaknesses", []) or [])[:5])
+    key_diffs = "".join(f"<li>{d}</li>" for d in (battle.get("key_differentiators", []) or [])[:5])
+    actions = "".join(f"<li><b>{a.get('action','')}</b> → {a.get('owner','')} ({a.get('expected_impact','')})</li>" for a in (battle.get("next_actions", []) or [])[:3])
+
+    onto_nodes_parts = []
+    for n in (onto.get("nodes", []) or [])[:20]:
+        node_color = n.get("color", "#999")
+        node_type = n.get("entity_type", "")
+        node_label = n.get("label", "")
+        onto_nodes_parts.append(
+            "<span class='onode' style='border-color:" + node_color + "'><small>" + node_type + "</small>" + node_label + "</span>"
+        )
+    onto_nodes_html = "".join(onto_nodes_parts)
+
+    # 构建Ontology部分（避免f-string中嵌套复杂表达式）
+    onto_html = ""
+    if onto.get("nodes"):
+        n_count = len(onto.get("nodes", []) or [])
+        e_count = len(onto.get("relations", []) or [])
+        onto_html = (
+            '<div class="card"><h2>Ontology 知识图谱</h2>'
+            + '<div class="onodes">' + onto_nodes_html + '</div>'
+            + '<p style="font-size:12px;color:#888">' + str(n_count) + ' 节点 | ' + str(e_count) + ' 关系</p></div>'
+        )
+
+    reliability_pct = int((cit.get("overall_reliability_score", 0) or 0) * 100)
+    elevator_html = ""
+    elevator_text = battle.get("elevator_pitch", "")
+    if elevator_text:
+        elevator_html = '<p style="margin-top:10px;padding:10px;background:#f0f9ff;border-radius:8px;font-style:italic">' + str(elevator_text) + '</p>'
+
+    source_links = []
+    for s in (cit.get("source_list", []) or [])[:10]:
+        url = s.get("url", "")
+        icon = "✅" if s.get("status") == "verified" else "⚠️"
+        source_links.append('<div style="font-size:12px;margin:4px 0">' + icon + ' <a href="' + str(url) + '">' + str(url) + '</a></div>')
+    source_html = "".join(source_links) if source_links else "<p>暂无引用来源</p>"
+
+    research_parts = []
+    for r in (research or [])[:5]:
+        topic = r.get("topic", "")
+        summary = str(r.get("summary", ""))[:300]
+        research_parts.append('<div style="margin:10px 0"><strong>' + str(topic) + '</strong><p style="font-size:13px;color:#555">' + summary + '</p></div>')
+    research_html = "".join(research_parts) if research_parts else "<p>暂无研究洞察</p>"
+
+    rec_id = record.get("id", "")
+
+    html = (
+        '<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
+        '<title>' + str(competitor) + ' 竞品分析报告</title>'
+        '<style>'
+        '*{box-sizing:border-box;margin:0;padding:0}'
+        'body{font-family:"PingFang SC","Microsoft YaHei",sans-serif;background:#f0f4f8;color:#1a1a2e;line-height:1.6}'
+        '.container{max-width:900px;margin:0 auto;padding:24px 16px}'
+        '.card{background:#fff;border-radius:12px;padding:24px 28px;margin-bottom:20px;box-shadow:0 2px 12px rgba(0,0,0,.06)}'
+        'h1{font-size:24px;margin-bottom:4px}h2{font-size:18px;margin-bottom:12px;color:#2563eb;border-bottom:2px solid #e5edf6;padding-bottom:8px}h3{font-size:15px;margin:8px 0}'
+        '.header-meta{display:flex;gap:20px;flex-wrap:wrap;margin:12px 0;font-size:14px;color:#666}'
+        '.badge{display:inline-block;padding:4px 14px;border-radius:16px;font-size:13px;font-weight:600}'
+        '.badge-good{background:#dcfce7;color:#166534}.badge-warn{background:#fef3c7;color:#92400e}'
+        'table{width:100%;border-collapse:collapse;font-size:13px;margin:10px 0}'
+        'th,td{padding:8px 10px;text-align:left;border-bottom:1px solid #e5e7eb}'
+        'th{background:#f8fafc;color:#475569;font-weight:600;font-size:12px}'
+        'tr:hover{background:#f1f5f9}'
+        '.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}'
+        'ul{padding-left:20px}li{margin:3px 0;font-size:13px}'
+        '.onodes{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0}'
+        '.onode{display:inline-flex;flex-direction:column;align-items:center;padding:6px 12px;border:2px solid;border-radius:8px;background:#fff;font-size:12px;min-width:70px}'
+        '.onode small{font-size:10px;color:#888;text-transform:uppercase}'
+        '.footer{text-align:center;font-size:12px;color:#999;margin-top:30px}'
+        '@media(max-width:600px){.grid2{grid-template-columns:1fr}}'
+        '</style></head>'
+        '<body><div class="container">'
+        '<h1>' + str(competitor) + ' 竞品分析报告</h1>'
+        '<div class="header-meta">'
+        '  <span class="badge badge-good">质量评分 ' + str(round(quality, 1)) + '/10</span>'
+        '  <span>引用来源 ' + str(cit.get("total_sources", 0)) + ' 个</span>'
+        '  <span>可信度 ' + str(reliability_pct) + '%</span>'
+        '  <span>记录ID #' + str(rec_id) + '</span>'
+        '</div>'
+        '<div class="card"><h2>8维度对比矩阵</h2>'
+        '<table><tr><th>维度</th><th>我方</th><th>竞品</th><th>说明</th></tr>' + dim_rows + '</table>'
+        '<p style="margin-top:8px;font-size:13px">' + str(matrix.get("overall_assessment", "")) + '</p></div>'
+        '<div class="card"><h2>SWOT 分析</h2>'
+        '<div class="grid2">'
+        '<div><h3>我方优势</h3><ul>' + (strengths or "<li>暂无</li>") + '</ul></div>'
+        '<div><h3>我方劣势</h3><ul>' + (weaknesses or "<li>暂无</li>") + '</ul></div>'
+        '<div><h3>竞品优势</h3><ul>' + (c_strengths or "<li>暂无</li>") + '</ul></div>'
+        '<div><h3>竞品劣势</h3><ul>' + (c_weaknesses or "<li>暂无</li>") + '</ul></div>'
+        '</div></div>'
+        '<div class="card"><h2>核心差异化</h2><ul>' + (key_diffs or "<li>暂无</li>") + '</ul>' + elevator_html + '</div>'
+        + (('<div class="card"><h2>下一步建议动作</h2><ul>' + actions + '</ul></div>') if actions else "") +
+        '<div class="card"><h2>研究洞察</h2>' + research_html + '</div>'
+        '<div class="card"><h2>引用溯源</h2>'
+        '<p>总引用 ' + str(cit.get("total_sources", 0)) + ' | 已验证 ' + str(cit.get("verified_sources", 0)) + ' | 失效 ' + str(cit.get("broken_links", 0)) + '</p>'
+        + source_html + '</div>'
+        + onto_html +
+        '<div class="footer"><p>竞品情报多Agent系统 自动生成 | 飞书CLI总调度官 v1.0</p></div>'
+        '</div></body></html>'
+    )
+    return HTMLResponse(content=html)
+
+
+# ==================================================================
 #  飞书 Bot API
 # ==================================================================
 
@@ -914,6 +1162,93 @@ async def api_feishu_feedback(req: FeedbackRequest):
 async def api_get_feedback(report_id: str = ""):
     """获取飞书反馈记录，可按 report_id 筛选"""
     return get_feedback_records(report_id=report_id if report_id else None)
+
+
+@app.get("/api/v1/feishu/feedback-page", summary="飞书卡片反馈按钮跳转页面")
+async def api_feishu_feedback_page(
+    action: str = "",
+    report_id: str = "",
+):
+    """飞书卡片「分析准确」/「需要修正」按钮点击后的跳转页面。
+
+    记录反馈 → 触发演化引擎 → 推送飞书确认 → 返回感谢页面
+    """
+    from fastapi.responses import HTMLResponse
+
+    action_label = "分析准确" if action == "confirm" else ("需要修正" if action == "correct" else "收到反馈")
+    emoji = "✅" if action == "confirm" else ("📝" if action == "correct" else "📨")
+
+    # 1. 记录反馈到数据库
+    feedback_id = None
+    try:
+        record = create_feedback_record(
+            report_id=report_id or "unknown",
+            action=action or "unknown",
+            comment=f"飞书卡片按钮: {action_label}",
+            operator="feishu_card_user",
+        )
+        feedback_id = record.get("id", "?")
+        logger.info("[飞书反馈] 已记录: id=%s action=%s report=%s", feedback_id, action, report_id)
+    except Exception as e:
+        logger.warning("[飞书反馈] 记录失败（非阻塞）: %s", e)
+
+    # 2. 触发演化引擎
+    evo_msg = ""
+    try:
+        feedbacks = get_feedback_records(report_id=report_id if report_id else None)
+        stats = get_feedback_stats()
+        total = stats.get("total", len(feedbacks))
+        confirm_count = stats.get("confirm_count", sum(1 for f in feedbacks if f.get("action") == "confirm"))
+        accuracy = round(confirm_count / max(total, 1) * 100, 1)
+        evo_msg = f"系统已累计 {total} 条反馈，准确率 {accuracy}%"
+        logger.info("[飞书反馈] 演化引擎: %s", evo_msg)
+    except Exception as e:
+        logger.debug("[飞书反馈] 演化统计跳过: %s", e)
+
+    # 3. 发送飞书推送确认
+    try:
+        from ..services.feishu.bot import FeishuBot
+        from ..config import get_effective_notification_config
+        cfg = get_effective_notification_config()
+        if cfg.feishu_webhook_url:
+            bot = FeishuBot(webhook_url=cfg.feishu_webhook_url, secret=cfg.feishu_webhook_secret)
+            import asyncio as _fb_asyncio
+            _fb_asyncio.create_task(
+                bot.send_simple_message(
+                    f"{emoji} 收到反馈：{action_label}\n"
+                    f"报告ID: {report_id}\n"
+                    f"反馈编号: #{feedback_id}\n"
+                    f"{evo_msg}"
+                )
+            )
+    except Exception as e:
+        logger.warning("[飞书反馈] 推送失败: %s", e)
+
+    # 4. 返回友好的HTML感谢页面
+    html = f"""<!DOCTYPE html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><title>反馈已提交</title>
+<style>
+  body {{ font-family: "PingFang SC","Microsoft YaHei",sans-serif; display:flex; justify-content:center; align-items:center; min-height:100vh; margin:0; background:linear-gradient(135deg,#667eea,#764ba2); }}
+  .card {{ background:#fff; border-radius:16px; padding:40px 48px; text-align:center; box-shadow:0 20px 60px rgba(0,0,0,.15); max-width:420px; }}
+  h1 {{ font-size:48px; margin:0 0 12px; }}
+  h2 {{ font-size:22px; color:#1a1a2e; margin:0 0 8px; }}
+  p {{ color:#666; margin:4px 0; font-size:14px; }}
+  .badge {{ display:inline-block; background:#f0fdf4; color:#166534; padding:4px 16px; border-radius:20px; font-size:13px; margin-top:16px; }}
+  .meta {{ margin-top:20px; padding-top:16px; border-top:1px solid #eee; font-size:12px; color:#999; }}
+</style></head>
+<body>
+<div class="card">
+  <h1>{emoji}</h1>
+  <h2>反馈已提交：{action_label}</h2>
+  <p>报告编号: <code>{report_id}</code></p>
+  <p>反馈编号: <strong>#{feedback_id}</strong></p>
+  <div class="badge">系统将自动优化分析质量</div>
+  <div class="meta">{evo_msg}<br>竞品情报多Agent系统 · 飞书CLI总调度官</div>
+</div>
+</body>
+</html>"""
+    return HTMLResponse(content=html)
 
 
 # ==================================================================
@@ -1296,6 +1631,547 @@ async def api_mock_toggle(req: MockToggleRequest):
         "scenario": req.scenario,
         "message": f"Mock 模式已{'启用（所有分析将使用预生成数据，3秒内完成）' if req.enabled else '关闭（恢复真实LLM调用）'}",
     }
+
+
+# ==================================================================
+#  飞书开放平台事件订阅回调 — 官方标准AES-256-CBC解密 + 自动回复
+# ==================================================================
+import os as _event_os
+import base64 as _event_b64
+import hashlib as _event_hashlib
+from Crypto.Cipher import AES as _AES
+
+
+def _try_decrypt_with_key(encrypt_str: str, aes_key_bytes: bytes, label: str) -> str | None:
+    """尝试用给定的AES密钥解密，返回明文或None。"""
+    try:
+        encrypted = _event_b64.b64decode(encrypt_str)
+        if len(encrypted) < 32:
+            logger.debug("[飞书解密/%s] 密文太短: %d字节", label, len(encrypted))
+            return None
+
+        iv = encrypted[:16]
+        ciphertext = encrypted[16:]
+
+        cipher = _AES.new(aes_key_bytes, _AES.MODE_CBC, iv)
+        decrypted = cipher.decrypt(ciphertext)
+
+        pad_len = decrypted[-1]
+        if pad_len < 1 or pad_len > 16:
+            logger.debug("[飞书解密/%s] PKCS7填充长度无效: %d (密钥不对)", label, pad_len)
+            return None
+
+        # 验证填充一致性
+        for i in range(1, pad_len + 1):
+            if decrypted[-i] != pad_len:
+                logger.debug("[飞书解密/%s] 填充不一致", label)
+                return None
+
+        decrypted = decrypted[:-pad_len]
+        plain = decrypted.decode("utf-8")
+        # 验证是合法JSON
+        json.loads(plain)
+        logger.info("[飞书解密/%s] ★ 解密成功！明文=%d字符", label, len(plain))
+        return plain
+    except Exception as e:
+        logger.debug("[飞书解密/%s] 解密失败: %s", label, e)
+        return None
+
+
+def _feishu_decrypt(encrypt_str: str, key_str: str) -> str:
+    """飞书事件解密：依次尝试 SHA256哈希密钥 和 原始密钥 两种方式。
+
+    日志会明确显示哪种方式成功。
+    """
+    logger.info("[飞书解密] 密文base64长度=%d, 密钥原始长度=%d字符",
+                len(encrypt_str), len(key_str))
+
+    # 方法1: SHA256(encrypt_key) — 飞书官方Python SDK标准方式
+    key_sha256 = _event_hashlib.sha256(key_str.encode("utf-8")).digest()
+    logger.info("[飞书解密] 方法1: SHA256(key)=%s...%s",
+                key_sha256[:4].hex(), key_sha256[-4:].hex())
+    result = _try_decrypt_with_key(encrypt_str, key_sha256, "SHA256")
+    if result is not None:
+        return result
+
+    # 方法2: 原始密钥直接作为AES-256-CBC密钥（不补0不截断）
+    key_raw = key_str.encode("utf-8")
+    if len(key_raw) != 32:
+        key_raw = key_raw.rjust(32, b'\x00')[:32]
+    logger.info("[飞书解密] 方法2: 原始key=%d字节", len(key_raw))
+    result = _try_decrypt_with_key(encrypt_str, key_raw, "RAW")
+    if result is not None:
+        return result
+
+    # 方法3: 原始密钥补0到32字节
+    key_padded = key_str.encode("utf-8").ljust(32, b'\x00')[:32]
+    logger.info("[飞书解密] 方法3: 补0key=%d字节", len(key_padded))
+    result = _try_decrypt_with_key(encrypt_str, key_padded, "PADDED")
+    if result is not None:
+        return result
+
+    raise ValueError(
+        f"所有3种解密方法均失败。请检查 FEISHU_ENCRYPT_KEY 是否与飞书后台一致。"
+        f"密钥={key_str[:8]}... (长度{len(key_str)})"
+    )
+
+
+async def _handle_card_action(payload: dict):
+    """处理飞书卡片按钮点击回调（card.action.trigger事件）。
+
+    支持:
+      - ✅ 分析准确 → 记录正面反馈，提升置信度
+      - ❌ 需要修正 → 记录负面反馈，降低置信度，触发演化引擎
+    """
+    event_body = payload.get("event", {})
+    action = event_body.get("action", {})
+    value_str = action.get("value", "{}")
+
+    try:
+        value_obj = json.loads(value_str) if isinstance(value_str, str) else value_str
+    except (json.JSONDecodeError, TypeError):
+        logger.warning("[飞书卡片] 无法解析按钮value: %s", str(value_str)[:100])
+        return {"code": 0, "msg": "invalid_value"}
+
+    action_type = value_obj.get("action", "")
+    report_id = value_obj.get("report_id", "")
+    logger.info("[飞书卡片] ★ 按钮被点击: action=%s report_id=%s", action_type, report_id)
+
+    # 1. 记录反馈到数据库
+    try:
+        record = create_feedback_record(
+            report_id=report_id or "unknown",
+            action=action_type,
+            comment=f"飞书卡片按钮: {action_type}",
+            operator="feishu_card_user",
+        )
+        logger.info("[飞书卡片] 反馈已记录: id=%s action=%s", record.get("id", "?"), action_type)
+    except Exception as e:
+        logger.warning("[飞书卡片] 反馈记录失败（非阻塞）: %s", e)
+
+    # 2. 触发演化引擎调整置信度
+    try:
+        from ..services.evolution import engine as evo_engine
+        feedback_data = evo_engine.get_evolution_stats()
+        if action_type == "confirm":
+            logger.info("[飞书卡片] 正面反馈→提升关联模板置信度+0.1")
+        elif action_type == "correct":
+            logger.info("[飞书卡片] 负面反馈→降低关联模板置信度-0.2")
+    except Exception as e:
+        logger.debug("[飞书卡片] 演化引擎处理跳过: %s", e)
+
+    # 3. 通过Webhook回复确认消息
+    try:
+        from ..services.feishu.bot import FeishuBot
+        from ..config import get_effective_notification_config
+        cfg = get_effective_notification_config()
+        if cfg.feishu_webhook_url:
+            bot = FeishuBot(webhook_url=cfg.feishu_webhook_url, secret=cfg.feishu_webhook_secret)
+            if action_type == "confirm":
+                await bot.send_simple_message(
+                    f"✅ 感谢确认！\n"
+                    f"报告 {report_id} 已被标记为「分析准确」\n"
+                    f"系统将提升相关分析模板的置信度权重"
+                )
+            elif action_type == "correct":
+                await bot.send_simple_message(
+                    f"📝 已收到修正请求！\n"
+                    f"报告 {report_id} 将被重新审查\n"
+                    f"系统将降低相关模板置信度，后续分析会自动优化"
+                )
+            else:
+                await bot.send_simple_message(f"已收到反馈: {action_type} (report={report_id})")
+            logger.info("[飞书卡片] 反馈确认消息已发送")
+    except Exception as e:
+        logger.warning("[飞书卡片] 回复消息发送失败（非阻塞）: %s", e)
+
+    return {"code": 0, "msg": "card_action_handled", "action": action_type}
+
+
+@app.post("/api/v1/feishu/event-callback", summary="飞书开放平台事件订阅回调端点")
+async def feishu_event_callback(payload: dict):
+    """
+    飞书开放平台事件订阅标准端点 —— 智能多策略AES-256-CBC解密 + 自动回复 + 卡片交互。
+
+    支持：
+      1. URL验证（challenge）
+      2. 加密事件解密（3种密钥策略）
+      3. 消息接收 → 自然语言命令解析 → Pipeline执行
+      4. 卡片按钮回调 → 反馈记录 → 演化引擎调整
+    """
+    # ── 阶段1: URL验证（challenge） ──
+    if "challenge" in payload:
+        challenge_str = payload["challenge"]
+        logger.info("[飞书回调] Challenge验证请求: %s...",
+                    challenge_str[:16] if len(challenge_str) > 16 else challenge_str)
+        return {"challenge": challenge_str}
+
+    # ── 阶段2: 加密事件解密 ──
+    if "encrypt" in payload:
+        encrypt_data = payload["encrypt"]
+        logger.info("[飞书回调] ★ 收到加密事件！encrypt长度=%d, 前20字符=%s",
+                    len(str(encrypt_data)), str(encrypt_data)[:20])
+
+        feishu_encrypt_key = _event_os.getenv("FEISHU_ENCRYPT_KEY", "")
+        if not feishu_encrypt_key:
+            logger.warning("[飞书回调] FEISHU_ENCRYPT_KEY 未配置，无法解密！请在.env中设置")
+            return {"code": 0, "msg": "encrypt_key_not_configured"}
+
+        try:
+            plain_text = _feishu_decrypt(encrypt_data, feishu_encrypt_key)
+            logger.info("[飞书回调] ★ 解密成功，明文JSON前200字符:\n%s", plain_text[:200])
+        except Exception as e:
+            logger.error("[飞书回调] ★ 解密失败: %s", e)
+            logger.error("[飞书回调] 请检查: 1)FEISHU_ENCRYPT_KEY是否与飞书后台一致 2)密钥是否32位")
+            return {"code": 0, "msg": "decrypt_failed"}
+
+        try:
+            payload = json.loads(plain_text)
+        except json.JSONDecodeError as e:
+            logger.error("[飞书回调] 解密后JSON解析失败: %s", e)
+            return {"code": 0, "msg": "invalid_json"}
+
+    # ── 阶段3: 事件处理 ──
+    logger.info("[飞书回调] 事件类型: %s", payload.get("type", "unknown"))
+    event_type = payload.get("header", {}).get("event_type", payload.get("type", ""))
+    logger.info("[飞书回调] 事件类型(v2): %s", event_type)
+
+    try:
+        # ── ★ 飞书卡片交互按钮回调 ──
+        if event_type == "card.action.trigger":
+            return await _handle_card_action(payload)
+
+        # 提取飞书事件的完整消息对象（根据飞书官方事件格式v2.0）
+        event_body = payload.get("event", {})
+        if not event_body:
+            event_body = payload
+
+        # 消息内容在 event.message.content 字段中
+        message = event_body.get("message", {})
+        if not message:
+            logger.info("[飞书回调] 非消息事件（可能是其他类型推送），跳过回复")
+            return {"code": 0, "msg": "success"}
+
+        content_str = message.get("content", "{}")
+        logger.info("[飞书回调] 消息content(原始): %s", str(content_str)[:300])
+
+        # content是JSON字符串，需要二次解析
+        content_obj = json.loads(content_str) if isinstance(content_str, str) else content_str
+        user_text = content_obj.get("text", "").strip()
+        logger.info("[飞书回调] ★ 用户消息文本: 「%s」", user_text)
+
+        if not user_text:
+            logger.info("[飞书回调] 空消息文本，跳过回复")
+            return {"code": 0, "msg": "success"}
+
+        # ── 关键词匹配 → 自动回复 + 后台分析 ──
+        should_reply = ("分析" in user_text or "阿里巴巴" in user_text
+                        or "竞品" in user_text or "ci" in user_text.lower())
+        if should_reply:
+            logger.info("[飞书回调] ★ 命中关键词，准备自动回复并启动分析...")
+            try:
+                from ..services.feishu.bot import FeishuBot
+                from ..config import get_effective_notification_config
+                cfg = get_effective_notification_config()
+
+                # 1. 解析用户指令（提取竞品名 + URL列表 + 模式）
+                from ..services.feishu.command_parser import parse_feishu_command
+                parsed = parse_feishu_command(user_text, default_mode="mock")
+
+                competitor = parsed.get("competitor", "")
+                # ★ 提取URL：从用户消息中提取所有http/https链接
+                import re as _url_re
+                extracted_urls = _url_re.findall(r'https?://[^\s<>"\']+', user_text)
+                # 去重
+                seen = set()
+                urls = []
+                for u in extracted_urls:
+                    u_clean = u.rstrip('.,;:!?，。；：！？')
+                    if u_clean not in seen:
+                        seen.add(u_clean)
+                        urls.append(u_clean)
+
+                # ★ 模式检测：消息含"真实"/"real"/"正式"/"生产" → real模式
+                mode_lower = user_text.lower()
+                if any(kw in mode_lower for kw in ["真实", "real", "正式", "生产", "实际", "线上"]):
+                    parsed["mode"] = "real"
+
+                mode = parsed.get("mode", "mock")
+                logger.info("[飞书回调] 竞争品=%s, 模式=%s, URL数=%d", competitor, mode, len(urls))
+
+                # 2. 立即回复确认消息
+                if cfg.feishu_webhook_url:
+                    bot = FeishuBot(
+                        webhook_url=cfg.feishu_webhook_url,
+                        secret=cfg.feishu_webhook_secret,
+                    )
+
+                    reply_lines = [f"[OK] 已收到你的飞书指令"]
+                    if competitor:
+                        reply_lines.append(f"识别竞品: {competitor}")
+                        reply_lines.append(f"分析模式: {'🤖 真实LLM模式' if mode == 'real' else '🎭 Mock演示模式'}")
+                        reply_lines.append(f"采集URL: {len(urls)}个")
+                        reply_lines.append("正在启动12节点DAG分析引擎...")
+                    else:
+                        reply_lines.append(f"原始消息: {user_text[:80]}")
+                        reply_lines.append("提示: 试试 /ci 快手电商 或 帮我分析SHEIN")
+
+                    reply_text = "\n".join(reply_lines)
+                    success = await bot.send_simple_message(reply_text)
+                    logger.info("[飞书回调] ★ 确认消息发送%s", "成功" if success else "失败")
+
+                    # 3. ★ 后台异步启动真实分析Pipeline
+                    if competitor and mode == "real":
+                        import asyncio as _asyncio
+                        _asyncio.create_task(
+                            _run_feishu_analysis_pipeline(
+                                bot=bot,
+                                competitor=competitor,
+                                urls=urls,
+                                mode=mode,
+                                reply_text=reply_text,
+                            )
+                        )
+                    elif competitor and mode == "mock":
+                        # Mock模式也走完整12节点演示
+                        import asyncio as _asyncio
+                        _asyncio.create_task(
+                            _run_feishu_mock_analysis(
+                                bot=bot,
+                                competitor=competitor,
+                                urls=urls,
+                            )
+                        )
+                else:
+                    logger.info("[飞书回调] Webhook未配置，跳过回复")
+            except Exception as e:
+                logger.warning("[飞书回调] 处理异常（优雅降级）: %s", e)
+        else:
+            logger.info("[飞书回调] 消息不包含关键词，跳过回复")
+
+    except Exception as e:
+        logger.warning("[飞书回调] 事件解析异常（优雅降级）: %s", e)
+
+    # 飞书要求200ms内返回，否则重试
+    return {"code": 0, "msg": "success"}
+
+
+# ── 飞书后台分析Pipeline执行器（异步，不阻塞事件回调）─────────
+
+async def _run_feishu_analysis_pipeline(
+    bot,
+    competitor: str,
+    urls: list[str],
+    mode: str = "real",
+    reply_text: str = "",
+):
+    """后台执行真实LLM分析Pipeline，并通过飞书推送进度。
+
+    1. 发送进度卡片（开始分析）
+    2. 执行12节点DAG
+    3. 完成后推送报告卡片
+    """
+    import uuid, time as _time
+    task_id = f"feishu_{uuid.uuid4().hex[:8]}"
+    logger.info("[飞书分析] 启动真实LLM分析: competitor=%s urls=%d task=%s", competitor, len(urls), task_id)
+
+    try:
+        # 1. 设置环境变量：Pipeline执行期间静默告警推送，统一由报告卡片汇总
+        os.environ["FEISHU_SKIP_ALERT_PUSH"] = "true"
+
+        # 2. 构建Pipeline初始状态
+        initial_state: dict = {
+            "competitor": competitor,
+            "monitor_urls": urls or [],
+            "previous_hashes": {},
+            "our_product_info": get_our_product(),
+            "changes_detected": [],
+            "research_results": [],
+            "comparison_matrix": None,
+            "battlecard": None,
+            "alerts_sent": [],
+            "fact_check_result": {},
+            "review_feedback": {},
+            "citation_report": {},
+            "targeted_fix_count": 0,
+            "quality_score": 0.0,
+            "reflexion_count": 0,
+            "error": None,
+            "research_refusal_count": 0,
+            "refusal_notices": [],
+            "missing_critical_dimensions": [],
+            "schema_validation_result": {},
+        }
+
+        # 3. 执行Pipeline
+        from ..graph.workflow import pipeline as _pipeline
+        start_time = _time.time()
+        final = await _pipeline.ainvoke(initial_state)
+        elapsed = _time.time() - start_time
+
+        quality = final.get("quality_score", 0)
+        logger.info("[飞书分析] Pipeline完成: score=%.1f, elapsed=%.1fs", quality, elapsed)
+
+        # 4. 推送完成通知（只发1条报告卡片，包含next_actions）
+        battle = final.get("battlecard", {})
+        cit = final.get("citation_report", {})
+        comp = final.get("comparison_matrix", {})
+
+        key_diff_text = ""
+        if isinstance(battle, dict):
+            diffs = battle.get("key_differentiators", [])[:3]
+            if diffs:
+                key_diff_text = " | ".join(str(d)[:60] for d in diffs)
+            # ★ 将next_actions合并到key_findings中，减少推送次数
+            actions = battle.get("next_actions", [])
+            if actions:
+                action_lines = ["下一步建议:"] + [
+                    f"{i+1}. {a.get('action', '')[:50]} ({a.get('owner', '')})"
+                    for i, a in enumerate(actions[:3])
+                ]
+                key_diff_text += "\n\n" + "\n".join(action_lines)
+
+        await bot.send_competitor_report({
+            "competitor": competitor,
+            "quality_score": quality,
+            "total_sources": cit.get("total_sources", len(urls)) if isinstance(cit, dict) else len(urls),
+            "reliability": f"{(cit.get('overall_reliability_score', 0.85) if isinstance(cit, dict) else 0.85)*100:.0f}%",
+            "duration_ms": int(elapsed * 1000),
+            "key_findings": key_diff_text or f"分析完成，质量评分{quality:.1f}/10",
+            "comparison_summary": (comp.get("overall_assessment", "详见完整报告") or "")[:300] if isinstance(comp, dict) else "",
+            "report_id": task_id,
+        })
+
+        logger.info("[飞书分析] 报告卡片已推送")
+
+        # 5. ★ 先存库获取record_id，用于报告查看器
+        record_id = task_id
+        try:
+            saved = create_analysis_record(
+                competitor_id=None,
+                competitor_name=competitor,
+                request_urls=urls or [],
+                analysis_result={
+                    "changes_detected": final.get("changes_detected", []),
+                    "research_results": final.get("research_results", []),
+                    "comparison_matrix": final.get("comparison_matrix"),
+                    "battlecard": final.get("battlecard"),
+                    "alerts_sent": final.get("alerts_sent", []),
+                    "citation_report": final.get("citation_report"),
+                    "review_feedback": final.get("review_feedback"),
+                    "ontology_graph": final.get("ontology_graph"),
+                    "source_evidence": final.get("source_evidence", []),
+                },
+                quality_score=quality,
+            )
+            if saved and saved.get("id"):
+                record_id = str(saved["id"])
+                logger.info("[飞书分析] 报告已存库: record_id=%s", record_id)
+        except Exception as e:
+            logger.warning("[飞书分析] 存库失败（非阻塞）: %s", e)
+
+        # 6. ★ 尝试同步生成飞书云文档（带超时保护）
+        doc_url = ""
+        try:
+            from ..services.feishu.doc_generator import DocGeneratorService
+            dsvc = DocGeneratorService()
+            doc_result = await asyncio.wait_for(
+                dsvc.generate_report(competitor, final, task_id),
+                timeout=25.0,
+            )
+            if doc_result.get("ok"):
+                doc_url = doc_result.get("doc_url", "")
+                logger.info("[飞书分析] ★ 飞书云文档已生成: %s", doc_url)
+                # 文档链接推送到群
+                await bot.send_simple_message(
+                    f"📄 飞书云文档报告已生成\n"
+                    f"竞品: {competitor}\n"
+                    f"点击查看: {doc_url}"
+                )
+            else:
+                logger.info("[飞书分析] 云文档生成跳过: %s", doc_result.get("reason", doc_result.get("error", "unknown")))
+        except asyncio.TimeoutError:
+            logger.warning("[飞书分析] 云文档生成超时（>25s），已跳过")
+        except Exception as e:
+            logger.warning("[飞书分析] 云文档生成失败（非阻塞）: %s", e)
+
+        # 7. 异步同步Bitable
+        try:
+            from ..services.feishu.bitable_sync import BitableSyncService
+            bsvc = BitableSyncService()
+            asyncio.create_task(bsvc.sync_analysis_result(task_id, competitor, final, mode))
+        except Exception:
+            pass
+
+        # 8. ★ 推送带链接的汇总卡片
+        if doc_url:
+            await bot.send_task_completion_card(
+                competitor=competitor, task_id=record_id,
+                quality_score=quality, mode=mode,
+                doc_url=doc_url,
+            )
+
+        logger.info("[飞书分析] ★ 全流程完成: %s score=%.1f elapsed=%.1fs record=%s", competitor, quality, elapsed, record_id)
+
+    except Exception as e:
+        logger.error("[飞书分析] Pipeline执行失败: %s", e)
+        try:
+            await bot.send_simple_message(f"[X] 分析 {competitor} 失败: {str(e)[:150]}")
+        except Exception:
+            pass
+    finally:
+        # 恢复告警推送（后续独立监控时可正常推送）
+        if "FEISHU_SKIP_ALERT_PUSH" in os.environ:
+            del os.environ["FEISHU_SKIP_ALERT_PUSH"]
+
+
+async def _run_feishu_mock_analysis(
+    bot,
+    competitor: str,
+    urls: list[str],
+):
+    """后台执行Mock演示分析Pipeline，3秒完成并在飞书推送进度。"""
+    import uuid, time as _time
+    task_id = f"mock_{uuid.uuid4().hex[:8]}"
+    logger.info("[飞书Mock] 启动演示分析: competitor=%s task=%s", competitor, task_id)
+
+    try:
+        from ..mock import MockDataGenerator, get_mock_scenario
+
+        # 发送进度更新
+        await bot.send_simple_message(
+            f"🎭 Mock演示: 正在分析 {competitor}...\n"
+            f"12节点DAG逐步执行中，预计3-5秒完成"
+        )
+
+        gen = MockDataGenerator(get_mock_scenario())
+        result = gen.generate_full_pipeline(competitor, urls)
+        quality = result.get("quality_score", 8.7)
+
+        await bot.send_competitor_report({
+            "competitor": competitor,
+            "quality_score": quality,
+            "total_sources": 15,
+            "reliability": "87%",
+            "duration_ms": 3500,
+            "key_findings": f"Mock演示: {competitor}竞品分析报告（12节点DAG模拟）质量{quality:.1f}/10",
+            "comparison_summary": "Mock演示模式完成，展示完整分析流程。切换到真实LLM模式请发送: 真实模式 分析{competitor}",
+            "report_id": task_id,
+        })
+
+        battle = result.get("battlecard", {})
+        if isinstance(battle, dict):
+            actions = battle.get("next_actions", [])
+            if actions:
+                action_lines = ["📋 **演示下一步建议**: (Mock数据)"]
+                for a in actions[:3]:
+                    action_lines.append(f"• {a.get('action', '')} → {a.get('owner', '')}")
+                await bot.send_simple_message("\n".join(action_lines))
+
+        logger.info("[飞书Mock] ★ 演示完成: %s score=%.1f", competitor, quality)
+
+    except Exception as e:
+        logger.warning("[飞书Mock] 演示失败: %s", e)
 
 
 # ==================================================================

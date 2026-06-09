@@ -166,12 +166,35 @@ def _persist_trace(
 
 
 def _extract_tokens(result: dict, agent_name: str) -> tuple[int, int]:
-    """尝试从 Agent 返回值中提取 token 用量"""
+    """尝试从 Agent 返回值中提取 token 用量。
+
+    兼容多种 LLM 返回格式：
+      - DoubaoLLM: result["usage_metadata"] = {"input_tokens": X, "output_tokens": Y}
+      - LangChain AIMessage: result.usage_metadata 属性
+      - LLMFactory: result["usage"] = {"input_tokens": X, "output_tokens": Y}
+    """
     inp, out = 0, 0
     if isinstance(result, dict):
-        usage = result.get("usage") or result.get("token_usage") or {}
-        inp = usage.get("input_tokens") or usage.get("prompt_tokens") or 0
-        out = usage.get("output_tokens") or usage.get("completion_tokens") or 0
+        # 方式1: DoubaoLLM FakeAIMessage 返回的 usage_metadata
+        usage = result.get("usage_metadata") or {}
+        if usage:
+            inp = usage.get("input_tokens", 0)
+            out = usage.get("output_tokens", 0)
+        # 方式2: LLMFactory 返回的 usage
+        if inp == 0 and out == 0:
+            usage2 = result.get("usage") or result.get("token_usage") or {}
+            inp = usage2.get("input_tokens") or usage2.get("prompt_tokens") or 0
+            out = usage2.get("output_tokens") or usage2.get("completion_tokens") or 0
+        # 方式3: 嵌套在 response_metadata 中 (LangChain AIMessage)
+        if inp == 0 and out == 0:
+            meta = result.get("response_metadata") or {}
+            inp = meta.get("input_tokens", 0)
+            out = meta.get("output_tokens", 0)
+        # 如果 agent 返回中有 content 字段，估算字符数量
+        if inp == 0 and out == 0:
+            content = result.get("content", "")
+            if isinstance(content, str) and len(content) > 100:
+                out = len(content) // 4  # 粗略估算 (中文约 1-2 chars/token)
     return int(inp), int(out)
 
 
